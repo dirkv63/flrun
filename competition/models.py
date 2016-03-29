@@ -90,14 +90,16 @@ class Organization:
         :param datestamp: Date of the organization.
         :return: True if the organization has been registered, False if it existed already.
         """
+        logging.debug("Name: {name}, Location: {location}, Date: {datestamp}"
+                      .format(name=name, location=location, datestamp=type(datestamp)))
         if self.find(name, location, datestamp):
             # No need to register (Organization exist already), and organization attributes are set.
             return False
         else:
             # Organization on Location and datestamp does not yet exist, register it.
             loc = Location(location).get_node()   # Get Location Node
-            year, month, day = [int(x) for x in datestamp.split('-')]
-            date_node = calendar.date(year, month, day).day   # Get Date (day) node
+            # year, month, day = [int(x) for x in datestamp.split('-')]
+            date_node = calendar.date(datestamp.year, datestamp.month, datestamp.day).day   # Get Date (day) node
             org = Node("Organization", name=name)
             graph.create(org)
             graph.create(Relationship(org, "On", date_node))

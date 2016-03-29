@@ -1,8 +1,9 @@
 from .models import Person, Organization, get_organizations, get_participants
-from flask import Flask, request, flash, render_template
+from flask import Flask, flash, render_template
 from flask_bootstrap import Bootstrap
 from flask_wtf import Form
 from wtforms import StringField, SubmitField
+from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired, Length
 
 app = Flask(__name__)
@@ -12,6 +13,13 @@ bootstrap = Bootstrap(app)
 class RegisterForm(Form):
     name = StringField('Participant: ', validators=[DataRequired(), Length(1, 24)])
     submit = SubmitField('Submit')
+
+
+class OrganisationNewForm(Form):
+    name = StringField('Naam', validators=[DataRequired(), Length(1, 24)])
+    location = StringField('Plaats', validators=[DataRequired(), Length(1, 24)])
+    datestamp = DateField('Datum')
+    submit = SubmitField('OK')
 
 
 @app.route('/')
@@ -42,17 +50,19 @@ def participant_list():
 
 @app.route('/organization', methods=['GET', 'POST'])
 def organization():
-
-    if request.method == 'POST':
-        name = request.form['name']
-        location = request.form['location']
-        datestamp = request.form['date']
-
+    name = None
+    location = None
+    datestamp = None
+    form = OrganisationNewForm()
+    if form.validate_on_submit():
+        name = form.name.data
+        location = form.location.data
+        datestamp = form.datestamp.data
         if Organization().register(name, location, datestamp):
             flash(name + ' created as an Organization')
         else:
             flash(name + ' does exist already, not created.')
-    return render_template('organization.html')
+    return render_template('organization.html', form=form, name=name, location=location, datestamp=datestamp)
 
 
 @app.route('/organization/list')
