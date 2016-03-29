@@ -1,5 +1,5 @@
-from competition import app
-import os
+#!/usr/bin/env python
+from competition import create_app
 from lib import my_env
 
 
@@ -12,5 +12,6 @@ my_log = my_env.init_loghandler(config, modulename)
 my_log.info('Start Application')
 
 # Run Application
-app.secret_key = os.urandom(24)
-app.run(debug=True, port=5008)
+if __name__ == "__main__":
+    app = create_app('development')
+    app.run()
