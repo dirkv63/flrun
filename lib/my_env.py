@@ -102,17 +102,19 @@ def get_inifile(projectname, scriptname):
     :return: Object reference to the inifile.
     """
     # Use Project Name as ini file.
-    # TODO: review procedure to get directory name instead of relative properties/ path.
-    (filepath, filename) = os.path.split(scriptname)
-    configfile = filepath + "/properties/" + projectname + ".ini"
+    # os.path.realpath will ensure full path name
+    # os.path.split will split in directory and basename
+    (filepath, filename) = os.path.split(os.path.realpath(scriptname))
+    # Set filename according to your system specs (Windows, Linux, ...)
+    configfile = os.path.join(filepath, "properties", projectname + ".ini")
     ini_config = configparser.ConfigParser()
     try:
         ini_config.read_file(open(configfile))
     except:
         e = sys.exc_info()[1]
         ec = sys.exc_info()[0]
-        log_msg = "Read Inifile not successful: %s (%s)"
-        print(log_msg % (e, ec))
+        log_msg = "Read Inifile not successful: {0} ({1}) - filepath: {2}"
+        print(log_msg.format(e, ec, filepath))
         sys.exit(1)
     return ini_config
 
