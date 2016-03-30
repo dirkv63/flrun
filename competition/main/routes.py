@@ -1,7 +1,21 @@
-from flask import render_template, flash, current_app, redirect, url_for
-from .forms import RegisterForm, OrganisationNewForm
+from flask import render_template, flash, current_app, redirect, url_for, request
+from flask_login import login_required, login_user, logout_user
+from .forms import RegisterForm, OrganisationNewForm, LoginForm
 from . import main
-from ..models import Person, Organization, get_organizations, get_participants
+from ..models import Person, Organization, User, get_organizations, get_participants
+
+
+@main.route('/login', methods=['GET', 'POST'])
+def login():
+    form = LoginForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username=form.username.data).first()
+        if user is None or not user.verify_password(form.password.data):
+            current_app.logger.debug('Login not successful')
+            return redirect(url_for('main.login', **request.args))
+        login_user(user, form.remember_me.data)
+        return redirect(request.args.get('next') or url_for('main.index'))
+    return render_template('login.html', form=form)
 
 
 @main.route('/')
@@ -9,7 +23,15 @@ def index():
     return render_template('index.html')
 
 
+@main.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    return redirect(url_for('main.index'))
+
+
 @main.route('/participant/register', methods=['GET', 'POST'])
+@login_required
 def register():
     name = None
     form = RegisterForm()
@@ -31,6 +53,7 @@ def participant_list():
 
 
 @main.route('/organization', methods=['GET', 'POST'])
+@login_required
 def organization():
     name = None
     location = None

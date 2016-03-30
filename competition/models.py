@@ -1,31 +1,14 @@
 import logging
 import sys
+from . import db, lm
+from flask_login import UserMixin
 from py2neo import Graph, Node, Relationship, watch
 from py2neo.ext.calendar import GregorianCalendar
+from werkzeug.security import generate_password_hash, check_password_hash
 
 graph = Graph()
 calendar = GregorianCalendar(graph)
 watch("py2neo.cypher")
-
-
-def get_organizations():
-    logging.info("In models.get_organization")
-    query = """
-    MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
-    RETURN day.key as date, org.name as organization, loc.city as city, id(org) as id
-    ORDER BY day.key ASC
-    """
-    return graph.cypher.execute(query)
-
-
-def get_participants():
-    logging.info("In models.get_participants")
-    query = """
-    MATCH (n:Person)
-    RETURN n.name as name
-    ORDER BY n.name ASC
-    """
-    return graph.cypher.execute(query)
 
 
 class Person:
@@ -162,3 +145,52 @@ class Location:
         self.register()    # Register if required, ignore else
         node = self.find()
         return node
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(10), index=True, unique=True)
+    passwork_hash = db.Column(db.String(64))
+
+    def set_password(self, password):
+        self.passwork_hash = generate_password_hash(password)
+
+    def verify_password(self, password):
+        return check_password_hash(self.passwork_hash, password)
+
+    @staticmethod
+    def register(username, password):
+        user = User()
+        user.username = username
+        user.set_password(password)
+        db.session.add(user)
+        db.session.commit()
+
+    def __repr__(self):
+        return "<User {user}>".format(user=self.username)
+
+
+def get_organizations():
+    logging.info("In models.get_organization")
+    query = """
+    MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
+    RETURN day.key as date, org.name as organization, loc.city as city, id(org) as id
+    ORDER BY day.key ASC
+    """
+    return graph.cypher.execute(query)
+
+
+def get_participants():
+    logging.info("In models.get_participants")
+    query = """
+    MATCH (n:Person)
+    RETURN n.name as name
+    ORDER BY n.name ASC
+    """
+    return graph.cypher.execute(query)
+
+
+@lm.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
