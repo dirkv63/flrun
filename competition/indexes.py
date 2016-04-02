@@ -1,4 +1,4 @@
-from .models import graph
+from .sql_models import graph
 
 nodes = [
     ('Person', 'name'),

@@ -1,6 +1,5 @@
 import logging
 import os
-# from .models import graph
 from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
@@ -33,5 +32,12 @@ def create_app(config_name):
     # import blueprints
     from .main import main as main_blueprint
     app.register_blueprint(main_blueprint)
+
+    # configure production logging of errors
+    if app.config['PRODUCTION']:
+        from logging.handlers import SMTPHandler
+        mail_handler = SMTPHandler('127.0.0.1', 'dirk@vermeylen.net', app.config['ADMINS'], 'Application Error')
+        mail_handler.setLevel(logging.ERROR)
+        app.logger.addHandler(mail_handler)
 
     return app
