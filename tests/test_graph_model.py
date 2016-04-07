@@ -1,6 +1,6 @@
 import unittest
 from competition import create_app, db
-from competition.sql_models import User
+from competition.models_sql import User
 from py2neo import Graph
 
 

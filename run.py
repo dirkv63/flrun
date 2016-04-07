@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from competition import create_app, db
-from competition.sql_models import User
+from competition.models_sql import User
 from lib import my_env
 
 

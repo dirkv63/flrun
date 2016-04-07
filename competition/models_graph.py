@@ -9,20 +9,65 @@ calendar = GregorianCalendar(graph)
 
 
 class Person:
-    def __init__(self, name):
-        self.name = name
+    def __init__(self):
+        self.name = 'NotYetDefined'
+        self.person_id = -1
 
     def find(self):
-        name = graph.find_one("Person", "name", self.name)
-        return name
-
-    def register(self):
-        if not self.find():
-            name = Node("Person", name=self.name)
-            graph.create(name)
+        """
+        Find ID of the person with name 'name'. Return node ID, else return false.
+        :return: Node ID, or false if no node could be found.
+        """
+        query = "match (p:Person {name: {name}}) return id(p) as id"
+        pers_id_arr = graph.cypher.execute(query, name=self.name)
+        if len(pers_id_arr):
+            self.person_id = pers_id_arr[0].id
             return True
         else:
+            logging.debug("No person found")
             return False
+
+    def register(self, name):
+        """
+        Attempt to register the participant with name 'name'. The name must be unique. Person object is set to current
+        participant. Name is set in this procedure, ID is set in the find procedure.
+        :param name: Name of the participant
+        :return: True, if registered. False otherwise.
+        """
+        self.name = name
+        if self.find():
+            # Person is found, Name and ID set, no need to register.
+            return False
+        else:
+            # Person not found, register participant.
+            name = Node("Person", name=self.name)
+            graph.create(name)
+            # Now call find() again to set ID for the person
+            self.find()
+            return True
+
+    def set_person(self, person_id):
+        """
+        This method will get the person associated with this ID. The assumption is that the person_id relates to a
+        existing and valid person.
+        :param person_id:
+        :return: Person object is set to the participant.
+        """
+        logging.debug("Person ID: {org_id}".format(org_id=person_id))
+        query = """
+        MATCH (p:Person)
+        WHERE id(p) = {person_id}
+        RETURN p.name as name
+        """.format(person_id=person_id)
+        person_array = graph.cypher.execute(query)
+        this_person = person_array[0]
+        # Todo - expecting one and exactly one row back. Handle errors?
+        self.name = this_person.name
+        self.person_id = person_id
+        return True
+
+    def get_name(self):
+        return self.name
 
 
 class Organization:
@@ -157,8 +202,47 @@ def get_organizations():
 def get_participants():
     logging.info("In models.get_participants")
     query = """
-    MATCH (n:Person)
-    RETURN n.name as name
-    ORDER BY n.name ASC
+        MATCH (n:Person)
+        RETURN n.name as name, id(n) as id
+        ORDER BY n.name ASC
     """
     return graph.cypher.execute(query)
+
+
+def relations(node_id):
+    """
+    This method will check if node with ID has relations. Returns True if there are relations, returns False otherwise.
+    :param node_id: ID of the object to check relations
+    :return: True - if there are relations, False - there are no relations.
+    """
+    logging.debug("In method relations for id {node_id}".format(node_id=node_id))
+    query = """
+        MATCH (n)
+        WHERE ((n)-[]-())
+          AND (id(n)={node_id})
+        RETURN n
+            """
+    res_array = graph.cypher.execute(query.format(node_id=node_id))
+    if len(res_array):
+        logging.debug("Relations found")
+        return True
+    else:
+        logging.debug("No Relations found")
+        return False
+
+
+def remove_node(node_id):
+    """
+    This method will remove node with ID node_id. Nodes can be removed only if there are no relations attached to the
+    node.
+    :param node_id:
+    :return: True if node is deleted, False otherwise
+    """
+    if relations(node_id):
+        logging.error("Request to delete node ID {node_id}, but relations found. Node not deleted"
+                      .format(node_id=node_id))
+        return False
+    else:
+        query = "MATCH (n) WHERE id(n)={node_id} DELETE n"
+        graph.cypher.execute(query.format(node_id=node_id))
+        return True
