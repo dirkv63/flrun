@@ -37,6 +37,7 @@ def create_app(config_name):
     try:
         app.config['PRODUCTION']
     except KeyError:
+        # Running in Dev or Test, OK
         pass
     else:
         from logging.handlers import SMTPHandler

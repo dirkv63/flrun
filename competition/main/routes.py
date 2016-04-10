@@ -2,7 +2,8 @@ from flask import render_template, flash, current_app, redirect, url_for, reques
 from flask_login import login_required, login_user, logout_user
 from .forms import RegisterForm, OrganisationNewForm, LoginForm
 from . import main
-from ..models_graph import Person, Organization, get_organizations, get_participants, relations, remove_node
+from ..models_graph import Person, Organization, get_organizations, get_participants, get_race_types, \
+    relations, remove_node
 from ..models_sql import User
 
 

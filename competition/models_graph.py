@@ -190,7 +190,7 @@ class Location:
 
 
 def get_organizations():
-    logging.info("In models.get_organization")
+    logging.debug("In models.get_organization")
     query = """
     MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
     RETURN day.key as date, org.name as organization, loc.city as city, id(org) as id
@@ -200,11 +200,26 @@ def get_organizations():
 
 
 def get_participants():
-    logging.info("In models.get_participants")
+    logging.debug("In models.get_participants")
     query = """
         MATCH (n:Person)
         RETURN n.name as name, id(n) as id
         ORDER BY n.name ASC
+    """
+    return graph.cypher.execute(query)
+
+
+def get_race_types():
+    """
+    This method will return a list of race types. Each element in the list is a dictionary with the race name,
+    description and id of the node.
+    :return:
+    """
+    logging.debug("In models.get_race_types")
+    query = """
+        MATCH (n:RaceType)
+        RETURN n.name as name, n.desc as desc, id(n) as id
+        ORDER BY n.weight ASC
     """
     return graph.cypher.execute(query)
 
@@ -246,3 +261,32 @@ def remove_node(node_id):
         query = "MATCH (n) WHERE id(n)={node_id} DELETE n"
         graph.cypher.execute(query.format(node_id=node_id))
         return True
+
+
+def init_graph(config):
+    """
+    This method will initialize the graph. It will set indeces and create nodes required for the application
+    (on condition that the nodes do not exist already).
+    :param config: Config object
+    :return:
+    """
+    stmt = "CREATE CONSTRAINT ON (n:{0}) ASSERT n.{1} IS UNIQUE"
+    graph.cypher.execute(stmt.format('Location', 'city'))
+    graph.cypher.execute(stmt.format('Person', 'name'))
+    graph.cypher.execute(stmt.format('RaceType', 'name'))
+
+    hoofdwedstrijd = graph.merge_one("RaceType", "name", "Hoofdwedstrijd")
+    bijwedstrijd = graph.merge_one("RaceType", "name", "Bijwedstrijd")
+    deelname = graph.merge_one("RaceType", "name", "Deelname")
+    hoofdwedstrijd['beschrijving'] = config['RaceType']['hoofdwedstrijd']
+    bijwedstrijd['beschrijving'] = config['RaceType']['bijwedstrijd']
+    deelname['beschrijving'] = config['RaceType']['deelname']
+    # Weight factor is used to sort the types in selection lists.
+    hoofdwedstrijd['weight'] = 10
+    bijwedstrijd['weight'] = 20
+    deelname['weight'] = 100
+    hoofdwedstrijd.push()
+    bijwedstrijd.push()
+    deelname.push()
+
+    return
