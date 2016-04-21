@@ -1,22 +1,37 @@
 from flask_wtf import Form
-from wtforms import StringField, SubmitField, PasswordField, BooleanField
+from wtforms import StringField, SubmitField, PasswordField, BooleanField, SelectField
 from wtforms.fields.html5 import DateField
 from wtforms.validators import DataRequired, Length
 
 
-class RegisterForm(Form):
+class PersonAdd(Form):
     name = StringField('Participant: ', validators=[DataRequired(), Length(1, 24)])
     submit = SubmitField('Submit')
 
 
-class OrganisationNewForm(Form):
+class OrganizationAdd(Form):
     name = StringField('Naam', validators=[DataRequired(), Length(1, 24)])
     location = StringField('Plaats', validators=[DataRequired(), Length(1, 24)])
     datestamp = DateField('Datum')
     submit = SubmitField('OK')
 
 
-class LoginForm(Form):
+class RaceAdd(Form):
+    name = StringField('Naam', validators=[DataRequired(), Length(1, 12)])
+    raceType = SelectField('Type Wedstrijd', coerce=int)
+    submit = SubmitField('OK')
+
+
+class ParticipantAdd(Form):
+    name = SelectField('Naam', coerce=int)
+    place = StringField('Plaats')
+    time = StringField('Tijd')
+    other = StringField('Opm.')
+    prev_runner_id = StringField('PrevRunner')
+    submit = SubmitField('OK')
+
+
+class Login(Form):
     username = StringField('Username', validators=[DataRequired(), Length(1, 16)])
     password = PasswordField('Password', validators=[DataRequired()])
     remember_me = BooleanField('Remember me')
