@@ -378,16 +378,41 @@ def person_list():
 
 def participant_list(race_id):
     query = """
-        MATCH (n:Person)
-        WHERE n NOT IN (
-            MATCH ((n)-[:is]->(part)-[:participates]->(race))
-            WHERE id(race) = {race_id}
-            RETURN n
-            )
+        MATCH (n)-[:is]->()-[:participates]->(race)
+        WHERE id(race) = {race_id}
         RETURN id(n) as id, n.name as name
         ORDER BY n.name ASC
     """.format(race_id=race_id)
     return graph.cypher.execute(query)
+
+
+def participant_seq_list(race_id):
+    query = """
+        MATCH race_ptn = (race),
+              finishers = (finisher)-[:is]->(participant)<-[:after*]-()
+        WHERE ()<-[:participates]-(participant)
+          AND id(race) = {race_id}
+        WITH COLLECT(finishers) AS results, MAX(length(finishers)) AS maxLength
+        WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
+        UNWIND result_coll as result
+        RETURN nodes(result)
+    """.format(race_id=race_id)
+    # Todo: convert to list of participants
+    return graph.cypher.execute(query)
+
+
+def next_participant(race_id):
+    """
+    This method will get the list of potential next participants. This is the list of all persons minus the people that
+    have been selected already in this race.
+    :param race_id:
+    :return:
+    """
+    # Todo: extend to participants that have been selected for this organization (one participation per race per org.)
+    participants = participant_list(race_id)
+    persons = person_list()
+    next_participants = [part for part in persons if part not in participants]
+    return next_participants
 
 
 def relations(node_id):
