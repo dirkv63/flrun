@@ -159,7 +159,7 @@ def participant_add(race_id):
     form = ParticipantAdd()
     form.name.choices = mg.next_participant(race_id)
     finishers = mg.participant_seq_list(race_id)
-    current_app.logger.debug("Finishers: {finishers}".format(finishers=finishers))
+    race_label = mg.race_label(race_id)
     if request.method == "POST":
         # Add collected info as participant to race.
         runner_id = form.name.data
@@ -169,11 +169,13 @@ def participant_add(race_id):
         current_app.logger.debug("Selected Runner: {runner}".format(runner=runner))
         participant = mg.Participant()
         participant.set(race_id=race_id, runner_id=runner_id)
-        return redirect(url_for('main.participant_add', form=form, race_id=race_id, finishers=finishers))
+        return redirect(url_for('main.participant_add', form=form, race_id=race_id, finishers=finishers,
+                                race_label=race_label))
     else:
         # Get method, initialize page.
         current_app.logger.debug("Initialize page")
-        return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers)
+        return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers,
+                               race_label=race_label)
 
 
 @main.errorhandler(404)

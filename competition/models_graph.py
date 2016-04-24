@@ -347,7 +347,6 @@ class Location:
 
 
 def organization_list():
-    logging.debug("In models.get_organization")
     query = """
     MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
     RETURN day.key as date, org.name as organization, loc.city as city, id(org) as id
@@ -357,14 +356,29 @@ def organization_list():
 
 
 def race_list(org_id):
-    logging.debug("In models.get_races for org_id: {org_id}".format(org_id=org_id))
     query = """
-    MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(racetype:RaceType)
-    WHERE id(org) = {org_id}
-    RETURN race.name as race, racetype.name as type, id(race) as race_id
-    ORDER BY racetype.weight, race.name
+        MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(racetype:RaceType)
+        WHERE id(org) = {org_id}
+        RETURN race.name as race, racetype.name as type, id(race) as race_id
+        ORDER BY racetype.weight, race.name
     """.format(org_id=org_id)
     return graph.cypher.execute(query)
+
+
+def race_label(race_id):
+    query = """
+        MATCH (race:Race)<-[:has]-(org)-[:On]->(date),
+              (org)-[:In]->(loc)
+        WHERE id(race)={race_id}
+        RETURN race.name as race, org.name as org, loc.city as city, date.day as day,
+               date.month as month, date.year as year
+    """.format(race_id=race_id)
+    recordlist = graph.cypher.execute(query)
+    record = recordlist[0]
+    label = "{day:02d}-{month:02d}-{year} - {city}, {race}".format(race=record["race"], city=record["city"],
+                                                                   day=record["day"], month=record["month"],
+                                                                   year=record["year"])
+    return label
 
 
 def person_list():
@@ -387,18 +401,33 @@ def participant_list(race_id):
 
 
 def participant_seq_list(race_id):
+    """
+    This method will collect the participants in a race in sequence of arrival.
+    :param race_id: Node ID of the race.
+    :return: List of names of the participants.
+    """
     query = """
-        MATCH race_ptn = (race),
-              finishers = (finisher)-[:is]->(participant)<-[:after*]-()
-        WHERE ()<-[:participates]-(participant)
-          AND id(race) = {race_id}
-        WITH COLLECT(finishers) AS results, MAX(length(finishers)) AS maxLength
+        MATCH race_ptn = (race)<-[:participates]-(participant),
+              participants = (participant)<-[:after*]-()
+        WHERE id(race) = {race_id}
+        WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
         WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
         UNWIND result_coll as result
         RETURN nodes(result)
     """.format(race_id=race_id)
-    # Todo: convert to list of participants
-    return graph.cypher.execute(query)
+    # Get the result of the query in a recordlist
+    recordlist = graph.cypher.execute(query)
+    # The recordlist has one element, which is a nodelist
+    node_list = recordlist[0][0]
+    # For each node (participant), find the person name (this may be converted to function).
+    finisher_list = []
+    for part in node_list:
+        # graph.match returns iterator. There can be one relation only so getting the first item of the iterator
+        # is sufficient.
+        rel = next(item for item in graph.match(end_node=part, rel_type="is"))
+        pers_name = rel.start_node["name"]
+        finisher_list.append(pers_name)
+    return finisher_list
 
 
 def next_participant(race_id):
