@@ -1,4 +1,5 @@
 import competition.models_graph as mg
+import logging
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
@@ -66,7 +67,14 @@ def person_summary(pers_id):
     part = mg.Person()
     part.set(pers_id)
     part_name = part.get()
-    return render_template('/race_list.html', org_label=part_name)
+    races = mg.races4person(pers_id)
+    # Don't count on len(races), since this is this competition races. Remove person only if not used across all
+    # competitions.
+    if mg.relations(pers_id):
+        conns = 1
+    else:
+        conns = 0
+    return render_template('/person_races_list.html', pers_label=part_name, pers_id=pers_id, races=races, conns=conns)
 
 
 @main.route('/person/<pers_id>/delete')
@@ -130,7 +138,7 @@ def race_list(org_id):
     org.set(org_id)
     org_label = org.get()
     races = mg.race_list(org_id)
-    return render_template('/race_list.html', org_label=org_label, org_id=org_id, races=races)
+    return render_template('/organization_races.html', org_label=org_label, org_id=org_id, races=races)
 
 
 @main.route('/race/<org_id>/add', methods=['GET', 'POST'])
@@ -156,11 +164,16 @@ def race_add(org_id):
 @main.route('/participant/<race_id>/add', methods=['GET', 'POST'])
 @login_required
 def participant_add(race_id):
-    form = ParticipantAdd()
-    form.name.choices = mg.next_participant(race_id)
-    finishers = mg.participant_seq_list(race_id)
+    """
+    This method will add a person to a race. By default the person is appended as tha last position in the race.
+    However it is possible to specify the person position from list of current participants.
+    :param race_id: ID of the race.
+    :return:
+    """
     race_label = mg.race_label(race_id)
     if request.method == "POST":
+        # Call form with default prev_runner value
+        form = ParticipantAdd(prev_runner=-1)
         # Add collected info as participant to race.
         runner_id = form.name.data
         runner_obj = mg.Person()
@@ -169,13 +182,41 @@ def participant_add(race_id):
         current_app.logger.debug("Selected Runner: {runner}".format(runner=runner))
         participant = mg.Participant()
         participant.set(race_id=race_id, runner_id=runner_id)
-        return redirect(url_for('main.participant_add', form=form, race_id=race_id, finishers=finishers,
-                                race_label=race_label))
+        return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.
         current_app.logger.debug("Initialize page")
+        part_last = mg.participant_last_id(race_id)
+        form = ParticipantAdd(prev_runner=part_last)
+        form.name.choices = mg.next_participant(race_id)
+        form.prev_runner.choices = mg.participant_after_list(race_id)
+        finishers = mg.participant_seq_list(race_id)
         return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers,
                                race_label=race_label)
+
+
+@main.route('/participant/remove/<race_id>/<part_id>', methods=['GET', 'POST'])
+@login_required
+def participant_remove(race_id, part_id):
+    """
+    This method will remove the participant from the race.
+    :param race_id: ID of the race. This can be calculated, but it is always available.
+    :param part_id: Node ID of the participant in the race.
+    :return:
+    """
+    form = ParticipantRemove()
+    race_label = mg.race_label(race_id)
+    if request.method == "POST":
+        if form.submit_ok:
+            logging.debug("OK to remove participant: {part_id}".format(part_id=part_id))
+        elif form.submit_cancel:
+            logging.debug("Cancel, don't remove")
+        else:
+            logging.debug("Unknown button, don't know how I got here")
+        # Add collected info as participant to race.
+    finishers = mg.participant_seq_list(race_id)
+    return render_template('participant_remove.html', form=form, race_id=race_id, finishers=finishers,
+                           race_label=race_label)
 
 
 @main.errorhandler(404)

@@ -27,8 +27,13 @@ class ParticipantAdd(Form):
     place = StringField('Plaats')
     time = StringField('Tijd')
     other = StringField('Opm.')
-    prev_runner_id = StringField('PrevRunner')
+    prev_runner = SelectField('Aankomst na:', coerce=int)
     submit = SubmitField('OK')
+
+
+class ParticipantRemove(Form):
+    submit_ok = SubmitField('OK')
+    submit_cancel = SubmitField('Cancel')
 
 
 class Login(Form):

@@ -224,7 +224,7 @@ class Race:
             self.org_id = org_id
         elif race_id:
             logging.debug("Trying to set Race Object for ID {race_id}".format(race_id=race_id))
-            self.node_set(node_id=race_id)
+            self.node_set(nid=race_id)
 
     def find(self, racetype):
         """
@@ -276,14 +276,14 @@ class Race:
             # self.find(name, location, datestamp)
             return True
 
-    def node_set(self, node_id=None):
+    def node_set(self, nid=None):
         """
         Given the node_id, this method will configure the race object.
-        :param node_id: Node ID of the race node.
+        :param nid: Node ID of the race node.
         :return: Fully configured race object.
         """
-        logging.debug("In node_set to create race node for id {node_id}".format(node_id=node_id))
-        self.race_id = node_id
+        logging.debug("In node_set to create race node for id {node_id}".format(node_id=nid))
+        self.race_id = nid
         race_node = Node(self.race_id)
         logging.debug("Race node set")
         self.name = race_node.properties['name']
@@ -381,7 +381,30 @@ def race_label(race_id):
     return label
 
 
+def races4person(pers_id):
+    """
+    This method will get the list of races for the person.
+    :param pers_id: Node ID for the person
+    :return: list with hash per race. Hash has race label and race type.
+    """
+    # Todo: Add identifier for the Competition (e.g. Stratenloop 2016).
+    query = """
+        MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
+              <-[:has]-(org:Organization)-[:On]->(day:Day)
+        WHERE id(person)={pers_id}
+        RETURN id(race) as race_id
+        ORDER BY day.key DESC
+    """.format(pers_id=pers_id)
+    recordlist = graph.cypher.execute(query)
+    races = [{'race_id': record.race_id, 'race_label': race_label(record.race_id)} for record in recordlist]
+    return races
+
+
 def person_list():
+    """
+    Return the list of persons in hash of id, name.
+    :return: List of persons. Each person is represented in a hash id, name of the person.
+    """
     query = """
         MATCH (n:Person)
         RETURN id(n) as id, n.name as name
@@ -391,6 +414,11 @@ def person_list():
 
 
 def participant_list(race_id):
+    """
+    Returns the list of participants in hash of id, name.
+    :param race_id: ID of the race for which current participants are returned
+    :return: List of participants. Each participant is represented as a hash id, name of the participant.
+    """
     query = """
         MATCH (n)-[:is]->()-[:participates]->(race)
         WHERE id(race) = {race_id}
@@ -403,12 +431,12 @@ def participant_list(race_id):
 def participant_seq_list(race_id):
     """
     This method will collect the participants in a race in sequence of arrival.
-    :param race_id: Node ID of the race.
+    :param race_id: ID of the race for which the participants are returned in sequence of arrival.
     :return: List of names of the participants.
     """
     query = """
         MATCH race_ptn = (race)<-[:participates]-(participant),
-              participants = (participant)<-[:after*]-()
+              participants = (participant)<-[:after*0..]-()
         WHERE id(race) = {race_id}
         WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
         WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
@@ -417,17 +445,67 @@ def participant_seq_list(race_id):
     """.format(race_id=race_id)
     # Get the result of the query in a recordlist
     recordlist = graph.cypher.execute(query)
-    # The recordlist has one element, which is a nodelist
-    node_list = recordlist[0][0]
-    # For each node (participant), find the person name (this may be converted to function).
     finisher_list = []
-    for part in node_list:
-        # graph.match returns iterator. There can be one relation only so getting the first item of the iterator
-        # is sufficient.
-        rel = next(item for item in graph.match(end_node=part, rel_type="is"))
-        pers_name = rel.start_node["name"]
-        finisher_list.append(pers_name)
+    # If there are finishers, then recordlist has one element, which is a nodelist
+    if len(recordlist) > 0:
+        node_list = recordlist[0][0]
+        # For each node (participant), find the person name (this may be converted to function).
+        for part in node_list:
+            # graph.match returns iterator. There can be one relation only so getting the first item of the iterator
+            # is sufficient.
+            rel = next(item for item in graph.match(end_node=part, rel_type="is"))
+            logging.debug("Node: {node}".format(node=rel.start_node.ref))
+            pers_name = rel.start_node["name"]
+            pers_id = node_id(rel.start_node)
+            logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_id))
+            pers_obj = [pers_id, pers_name]
+            finisher_list.insert(0, pers_obj)
     return finisher_list
+
+
+def participant_after_list(race_id):
+    """
+    This method will return the participant sequence list as a SelectField list. It will call participant_seq_list
+    and 'prepend' a value for 'eerste aankomer' (value -1).
+    :param race_id: Node ID of the race
+    :return: List of the names of the participants and value for 'eerste aankomer'.
+    """
+    eerste = [-1, 'Eerste aankomst']
+    finisher_list = participant_seq_list(race_id)
+    # Todo: prepend instead of append
+    finisher_list.append(eerste)
+    return finisher_list
+
+
+def participant_last_id(race_id):
+    """
+    This method will get the ID of the last participant in the race. It call check participant_after_list and fetch
+    the last ID of the runner. This way no special threatment is required in case there are no participants. The
+    ID of the last runner will redirect to -1 then.
+    :param race_id: Node ID of the race.
+    :return: Node ID of the last finisher so far in the race, -1 if no finishers registered yet.
+    """
+    finisher_list = participant_after_list(race_id)
+    part_arr = finisher_list.pop()
+    part_last = part_arr[0]
+    logging.debug("ID of last finisher: {part_last}".format(part_last=part_last))
+    return part_last
+
+
+
+def node_id(node):
+    """
+    This method gets a node and returns the node ID. In py2neo 2.08 node.ref returns 'node/id'. This function will
+    strip 'node/' and return the id.
+    :param node: Node object
+    :return: ID of the node
+    """
+    if type(node) is Node:
+        nid = node.ref[5:]
+        return nid
+    else:
+        logging.error("Node expected, but got {nodetype}".format(nodetype=type(node)))
+        return -1
 
 
 def next_participant(race_id):
@@ -444,21 +522,15 @@ def next_participant(race_id):
     return next_participants
 
 
-def relations(node_id):
+def relations(nid):
     """
     This method will check if node with ID has relations. Returns True if there are relations, returns False otherwise.
-    :param node_id: ID of the object to check relations
+    :param nid: ID of the object to check relations
     :return: True - if there are relations, False - there are no relations.
     """
-    logging.debug("In method relations for id {node_id}".format(node_id=node_id))
-    query = """
-        MATCH (n)
-        WHERE ((n)-[]-())
-          AND (id(n)={node_id})
-        RETURN n
-            """
-    res_array = graph.cypher.execute(query.format(node_id=node_id))
-    if len(res_array):
+    logging.debug("In method relations for id {node_id}".format(node_id=nid))
+    obj_node = graph.node(nid)
+    if obj_node.degree:
         logging.debug("Relations found")
         return True
     else:
@@ -466,20 +538,20 @@ def relations(node_id):
         return False
 
 
-def remove_node(node_id):
+def remove_node(nid):
     """
     This method will remove node with ID node_id. Nodes can be removed only if there are no relations attached to the
     node.
-    :param node_id:
+    :param nid:
     :return: True if node is deleted, False otherwise
     """
-    if relations(node_id):
+    if relations(nid):
         logging.error("Request to delete node ID {node_id}, but relations found. Node not deleted"
-                      .format(node_id=node_id))
+                      .format(node_id=nid))
         return False
     else:
         query = "MATCH (n) WHERE id(n)={node_id} DELETE n"
-        graph.cypher.execute(query.format(node_id=node_id))
+        graph.cypher.execute(query.format(node_id=nid))
         return True
 
 
