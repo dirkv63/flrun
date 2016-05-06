@@ -9,25 +9,100 @@ calendar = GregorianCalendar(graph)
 
 
 class Participant:
-    def __init__(self):
+    def __init__(self, part_id=None, race_id=None, pers_id=None):
+        self.part = None
+        self.part_id = -1
         self.prev_runner_id = -1
-        self.runner_id = -1
+        self.next_runner_id = -1
         self.race_id = -1
-        self.comp_id = -1   # Allows to configure if participation in competion is OK: wearing shirt, ...
+        if part_id:
+            self.part, self.part_id = self.set(part_id)
+        elif pers_id and race_id:
+            self.part, self.part_id = self.part_race(race_id=race_id, pers_id=pers_id)
+            self.race_id = race_id
 
-    def set(self, race_id=None, runner_id=None, prev_runner_id=None):
+    @staticmethod
+    def set(part_id):
         """
-        This method will set the participant in the race. The participant will be linked to the race,
+        This method will set the Participant Object
+        :param part_id: Node ID of the participant
+        :return:
+        """
+        return part_id, graph.node(part_id)
+
+    def get_id(self):
+        """
+        This method will return the Participant Node ID of this person's participation in the race
+        :return: Participant Node ID
+        """
+        return self.part_id
+
+    def part_race(self, race_id=None, pers_id=None):
+        """
+        This method will get the participant from Person ID and Race ID. If the participant exists already, it will
+        be returned. If the participant did not exist already, it will be created.
+        :param race_id: Node ID of the Race
+        :param pers_id: Node ID of the Person
+        :return: Participant Object is created
+        """
+        query = """
+            MATCH (pers:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
+            WHERE id(pers)={pers_id} AND id(race)={race_id}
+            RETURN part, id(part) as id
+        """.format(pers_id=pers_id, race_id=race_id)
+        res = graph.cypher.execute(query)
+        if len(res) == 0:
+            self.part, = graph.create(Node("Participant"))  # Create returns tuple
+            self.part_id = node_id(self.part)
+        else:
+            self.part, self.part_id = res[0]
+        return self.part, self.part_id
+
+    def add(self, prev_part_id=-1):
+        """
+        Check if there is a next participant for this participant, so if current runner enters an existing sequence.
+        :param prev_part_id:
+        :return:
+        """
+        if prev_part_id > 0:
+            prev_part = Participant(part_id=prev_part_id)
+            if prev_part.next_runner():
+                next_runner_id = prev_part.next_runner()
+                # Remove 'after' relation between prev_part and next_part
+                remove_relation(next_runner_id, prev_part_id, "after")
+                # Add link between prev_part and part
+                rel = Relationship(graph.node(self.part_id), "after", graph.node(self.prev_part_id))
+                graph.create(rel)
+                # Add link between part and next_part
+                rel = Relationship(graph.node(next_runner_id), "after", graph.node(self.part_id))
+                graph.create(rel)
+            else:
+                pass
+                # Previous participant but no next participant
+                # Add link between prev_part and part only
+                rel = Relationship(graph.node(self.part_id), "after", graph.node(self.prev_part_id))
+                graph.create(rel)
+        else:
+            # No previous participant. Find current first participant in race
+            # If found: Add link between participant and next_participant.
+            first_participant = participant_first_id(self.race_id)
+            if first_participant > -1:
+                rel = Relationship(graph.node(self.part_id), "after", graph.node(self.prev_part_id))
+                graph.create(rel)
+
+    def addxxx(self, race_id=None, part_id=None, prev_runner_id=None):
+        """
+        This method will add the participant in the race. The participant will be linked to the race,
         to the competition, (if applicable) to the prev runner and (if applicable) to the next runner.
         :param race_id:
-        :param runner_id:
+        :param part_id:
         :param prev_runner_id:
         :return:
         """
         if race_id:
             self.race_id = race_id
-        if runner_id:
-            self.runner_id = runner_id
+        if part_id:
+            self.part_id = part_id
         if prev_runner_id:
             self.prev_runner_id = prev_runner_id
         # Find last runner so far, to link to the previous runner
@@ -48,8 +123,58 @@ class Participant:
             graph.create(Relationship(participant, 'after', prev_part_node))
         race = graph.node(race_id)
         graph.create(Relationship(participant, "participates", race))
-        runner = graph.node(runner_id)
+        runner = graph.node(part_id)
         graph.create(Relationship(runner, "is", participant))
+        return
+
+    def prev_runner(self):
+        """
+        This method will get the node ID for this Participant's previous runner. If node ID = -1, then the value has
+        not yet been initialized. If value = -2, then there is no previous runner.
+        The participant must have been created before.
+        :return: ID of previous runner participant Node, False if there is no previous runner.
+        """
+        try:
+            rel = next(graph.match(start_node=self.part, rel_type="after"))
+        except StopIteration:
+            # There is no previous runner
+            self.prev_runner_id = -2
+            return False
+        else:
+            self.prev_runner_id = node_id(rel.end_node)
+            return self.prev_runner_id
+
+    def next_runner(self):
+        """
+        This method will get the node ID for this Participant's next runner. If node ID = -1, then the value has
+        not yet been initialized. If value = -2, then there is no next runner.
+        The participant must have been created before.
+        :return: ID of next runner participant Node, False if there is no previous runner.
+        """
+        try:
+            rel = next(graph.match(end_node=self.part, rel_type="after"))
+        except StopIteration:
+            # There is no next runner
+            self.next_runner_id = -2
+            return False
+        else:
+            self.next_runner_id = node_id(rel.start_node)
+            return self.next_runner_id
+
+    def remove(self):
+        """
+        This method will remove the participant from the race.
+        :return:
+        """
+        if self.prev_runner() and self.next_runner():
+            # There is a previous and next runner, link them
+            rel = Relationship(graph.node(self.next_runner_id), "after", graph.node(self.prev_runner_id))
+            graph.create(rel)
+        # Remove Participant Node
+        remove_node_force(self.part_id)
+        # Reset Object
+        self.part_id = -1
+        self.part = None
         return
 
 
@@ -413,6 +538,25 @@ def person_list():
     return graph.cypher.execute(query)
 
 
+def person4participant(part_id):
+    """
+    This method will get the person name from a participant ID. First it will convert the participant ID to a
+    participant node. Then it gets the (reverse) relation ('is') from participant to person.
+    Finally it will return the id and the name of the person in a hash.
+    :param part_id: Node ID of the participant.
+    :return: Name (label) associated with the person
+    """
+    logging.debug("Trying to find participant node for ID: {part_id}".format(part_id=part_id))
+    # First get Node from participant ID
+    part = graph.node(part_id)
+    # Then get relation from participant to person.
+    rel = next(item for item in graph.match(end_node=part, rel_type="is"))
+    # logging.debug("Node: {node}".format(node=rel.start_node.ref))
+    pers_name = rel.start_node["name"]
+    pers_id = node_id(rel.start_node)
+    return dict(name=pers_name, id=pers_id)
+
+
 def participant_list(race_id):
     """
     Returns the list of participants in hash of id, name.
@@ -459,7 +603,7 @@ def participant_seq_list(race_id):
             pers_id = node_id(rel.start_node)
             logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_id))
             pers_obj = [pers_id, pers_name]
-            finisher_list.insert(0, pers_obj)
+            finisher_list.append(pers_obj)
     return finisher_list
 
 
@@ -472,8 +616,7 @@ def participant_after_list(race_id):
     """
     eerste = [-1, 'Eerste aankomst']
     finisher_list = participant_seq_list(race_id)
-    # Todo: prepend instead of append
-    finisher_list.append(eerste)
+    finisher_list.insert(0, eerste)
     return finisher_list
 
 
@@ -491,6 +634,20 @@ def participant_last_id(race_id):
     logging.debug("ID of last finisher: {part_last}".format(part_last=part_last))
     return part_last
 
+
+def participant_first_id(race_id):
+    """
+    This method will get the ID of the first participant in the race.
+    :param race_id: Node ID of the race.
+    :return: Node ID of the first finisher so far in the race, -1 if no finishers registered yet.
+    """
+    finisher_list = participant_seq_list(race_id)
+    if len(finisher_list):
+        part_arr = finisher_list[0]
+        part_first = part_arr[0]
+    else:
+        part_first = -1
+    return part_first
 
 
 def node_id(node):
@@ -554,6 +711,37 @@ def remove_node(nid):
         graph.cypher.execute(query.format(node_id=nid))
         return True
 
+
+def remove_node_force(nid):
+    """
+    This method will remove node with ID node_id. The node and the relations to/from the node will also be deleted.
+    Use 'remove_node' to remove nodes only when there should be no relations attached to it.
+    :param nid: ID of the node
+    :return: True if node is deleted, False otherwise
+    """
+    query = "MATCH (n) WHERE id(n)={node_id} DETACH DELETE n"
+    graph.cypher.execute(query.format(node_id=nid))
+    return True
+
+
+def remove_relation(start_nid, end_nid, rel_type):
+    """
+    This method will remove the relation rel_type between Node with ID start_nid and Node with ID end_id. Relation is
+    of type rel_type.
+    :param start_nid: Node ID of the start node.
+    :param end_nid: Node ID of the end node.
+    :param rel_type: Type of the relation
+    :return:
+    """
+    query = """
+        MATCH (start_node)-[rel_type:{rel_type}]->(end_node)
+        WHERE id(start_node)={start_nid}
+          AND id(end_node)={end_nid}
+        DELETE rel
+    """.format(rel_type=rel_type, start_nid=start_nid, end_nid=end_nid)
+    logging.debug("Remove query looks like: {query}".format(query=query))
+    # graph.cypher.execute(query)
+    return
 
 def init_graph(config):
     """

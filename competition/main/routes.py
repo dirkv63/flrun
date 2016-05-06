@@ -1,5 +1,5 @@
 import competition.models_graph as mg
-import logging
+# import logging
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
@@ -173,15 +173,24 @@ def participant_add(race_id):
     race_label = mg.race_label(race_id)
     if request.method == "POST":
         # Call form with default prev_runner value
-        form = ParticipantAdd(prev_runner=-1)
+        form = ParticipantAdd()
         # Add collected info as participant to race.
         runner_id = form.name.data
-        runner_obj = mg.Person()
-        runner_obj.set(runner_id)
-        runner = runner_obj.get()
+        # runner_obj = mg.Person()
+        # runner_obj.set(runner_id)
+        # runner = runner_obj.get()
+        prev_runner_id = form.prev_runner.data
+        if prev_runner_id > 0:
+            # I got previous runner name, find associated participant ID
+            prev_part = mg.Participant(pers_id=prev_runner_id, race_id=race_id)
+            prev_part_id = prev_part.get_id()
+        else:
+            # There is no previous runner
+            prev_part_id = -1
         current_app.logger.debug("Selected Runner: {runner}".format(runner=runner))
-        participant = mg.Participant()
-        participant.set(race_id=race_id, runner_id=runner_id)
+        part = mg.Participant(race_id=race_id, pers_id=runner_id)
+        part.add(prev_part_id=prev_part_id)
+        # participant.add(race_id=race_id, part_id=runner_id)
         return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.
@@ -195,28 +204,28 @@ def participant_add(race_id):
                                race_label=race_label)
 
 
-@main.route('/participant/remove/<race_id>/<part_id>', methods=['GET', 'POST'])
+@main.route('/participant/remove/<race_id>/<pers_id>', methods=['GET', 'POST'])
 @login_required
-def participant_remove(race_id, part_id):
+def participant_remove(race_id, pers_id):
     """
     This method will remove the participant from the race.
     :param race_id: ID of the race. This can be calculated, but it is always available.
-    :param part_id: Node ID of the participant in the race.
+    :param pers_id: Node ID of the participant in the race.
     :return:
     """
+    person = mg.Person(person_id=pers_id)
+    person_name = person.get()
     form = ParticipantRemove()
     race_label = mg.race_label(race_id)
-    if request.method == "POST":
-        if form.submit_ok:
-            logging.debug("OK to remove participant: {part_id}".format(part_id=part_id))
-        elif form.submit_cancel:
-            logging.debug("Cancel, don't remove")
-        else:
-            logging.debug("Unknown button, don't know how I got here")
-        # Add collected info as participant to race.
     finishers = mg.participant_seq_list(race_id)
-    return render_template('participant_remove.html', form=form, race_id=race_id, finishers=finishers,
-                           race_label=race_label)
+    if request.method == "GET":
+        return render_template('participant_remove.html', form=form, race_id=race_id, finishers=finishers,
+                               race_label=race_label, pers_label=person_name)
+    elif request.method == "POST":
+        if form.submit_ok.data:
+            part = mg.Participant(race_id=race_id, pers_id=pers_id)
+            part.remove()
+    return redirect(url_for('main.participant_add', race_id=race_id))
 
 
 @main.errorhandler(404)
