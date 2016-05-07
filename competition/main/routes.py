@@ -165,14 +165,15 @@ def race_add(org_id):
 @login_required
 def participant_add(race_id):
     """
-    This method will add a person to a race. By default the person is appended as tha last position in the race.
-    However it is possible to specify the person position from list of current participants.
+    This method will add a person to a race. The previous runner (earlier arrival) is selected from drop-down list.
+    By default the person is appended as tha last position in the race, so the previous person was the last one in the
+    race. First position is specified as previous runner equals -1.
     :param race_id: ID of the race.
     :return:
     """
     race_label = mg.race_label(race_id)
     if request.method == "POST":
-        # Call form with default prev_runner value
+        # Call form to get input values
         form = ParticipantAdd()
         # Add collected info as participant to race.
         runner_id = form.name.data
@@ -185,9 +186,9 @@ def participant_add(race_id):
             prev_part = mg.Participant(pers_id=prev_runner_id, race_id=race_id)
             prev_part_id = prev_part.get_id()
         else:
-            # There is no previous runner
+            # There is no previous runner, this runner is the first finisher in the race.
             prev_part_id = -1
-        current_app.logger.debug("Selected Runner: {runner}".format(runner=runner))
+        # Create the participant node, connect to person and to race.
         part = mg.Participant(race_id=race_id, pers_id=runner_id)
         part.add(prev_part_id=prev_part_id)
         # participant.add(race_id=race_id, part_id=runner_id)
