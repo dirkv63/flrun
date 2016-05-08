@@ -1,5 +1,6 @@
 import competition.models_graph as mg
 # import logging
+import datetime
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
@@ -35,29 +36,41 @@ def logout():
 @main.route('/person/add', methods=['GET', 'POST'])
 @login_required
 def person_add(person_id=None):
-    if person_id:
-        person = mg.Person(person_id=person_id)
-        person_dict = person.props
-        name = person_dict['name']
-        mf = person_dict['mf']
-        form = PersonAdd(mf=mf)
-        form.name.data = name
-        if 'born' in person_dict:
-            form.born.data = person_dict['born']
-    else:
-        name = None
-        form = PersonAdd()
-        person = mg.Person()
-    if form.validate_on_submit():
-        person_dict = dict(name=form.name.data, mf=form.mf.data)
-        if form.born.data:
-            person_dict['born'] = form.born.data
-        name = person_dict['name']
-        form.name.data = ''
-        if person.add(**person_dict):
-            flash(name + ' created as a Person (participant)')
+    if request.method == "GET":
+        if person_id:
+            person = mg.Person(person_id=person_id)
+            person_dict = person.props()
+            name = person_dict['name']
+            mf = person_dict['mf']
+            form = PersonAdd(mf=mf)
+            form.name.data = name
+            if 'born' in person_dict:
+                bornstr = person_dict['born']
+                form.born.data = datetime.datetime.strptime(bornstr, '%Y-%m-%d').date()
         else:
-            flash(name + ' does exist already, not created.')
+            name = None
+            form = PersonAdd()
+            person = mg.Person()
+    elif request.method == "POST":
+        form = PersonAdd()
+        name = None
+        if form.validate_on_submit():
+            person_dict = dict(name=form.name.data, mf=form.mf.data)
+            if form.born.data:
+                person_dict['born'] = form.born.data
+            name = person_dict['name']
+            if person_id:
+                # This is from person edit function
+                current_app.logger.debug("Person Dictionary: {person_dict}".format(person_dict=person_dict))
+                person = mg.Person(person_id=person_id)
+                person.edit(**person_dict)
+            else:
+                person = mg.Person()
+                if person.add(**person_dict):
+                    flash(name + ' created as a Person (participant)')
+                else:
+                    flash(name + ' does exist already, not created.')
+            return redirect(url_for('main.person_list'))
     return render_template('person_add.html', form=form, name=name)
 
 
@@ -69,14 +82,15 @@ def person_edit(pers_id):
     :param pers_id:
     :return:
     """
-    person_add(person_id=pers_id)
+    # Flask insists on getting a response back. Omitting 'return' in line below is an implicit 'Return None' and Flask
+    # doesn't like this.
+    return person_add(person_id=pers_id)
 
 
 @main.route('/person/list')
 def person_list():
-    participants = mg.person_list()
-    current_app.logger.debug("Participants: {participants}".format(participants=participants))
-    return render_template('person_list.html', participants=participants)
+    persons = mg.person_list()
+    return render_template('person_list.html', persons=persons)
 
 
 @main.route('/person/<pers_id>')
@@ -87,7 +101,6 @@ def person_summary(pers_id):
     :param pers_id: ID of the Participant for which overview info is required.
     :return:
     """
-    current_app.logger.debug("pers_id: " + pers_id)
     part = mg.Person()
     part.set(pers_id)
     part_name = part.get()
@@ -98,7 +111,9 @@ def person_summary(pers_id):
         conns = 1
     else:
         conns = 0
-    return render_template('/person_races_list.html', pers_label=part_name, pers_id=pers_id, races=races, conns=conns)
+    persons = mg.person_list()
+    return render_template('/person_races_list.html', pers_label=part_name, pers_id=pers_id, races=races,
+                           conns=conns, persons=persons)
 
 
 @main.route('/person/<pers_id>/delete')

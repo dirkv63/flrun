@@ -1,6 +1,6 @@
 import logging
 import sys
-from py2neo import Graph, Node, Relationship
+from py2neo import Graph, Node, Relationship, batch
 from py2neo.ext.calendar import GregorianCalendar
 
 graph = Graph()
@@ -229,6 +229,16 @@ class Person:
             # Now call find() again to set ID for the person
             self.find()
             return True
+
+    def edit(self, **properties):
+        """
+        This method will update an existing person node. A check is done to guarantee that the name is not duplicated
+        to an existing name on another node. Modified properties will be updated and removed properties will be deleted.
+        :param properties: New set of properties for the node
+        :return: True - in case node is rewritten successfully.
+        """
+        node_update(self.person_id, **properties)
+        return True
 
     def set(self, person_id):
         """
@@ -692,6 +702,39 @@ def node_props(nid=None):
     if my_node.bound:
         logging.debug("Node Properties: {props}".format(props=my_node.properties))
         return my_node.properties
+    else:
+        logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
+        return False
+
+
+def node_update(nid, **properties):
+    """
+    This method will update the node's properties with the properties specified. Modified properties will be updated,
+    new properties will be added and removed properties will be deleted.
+    :param nid: ID of the node to modify.
+    :param properties: Dictionary of the property set for the node.
+    :return: True if successful update, False otherwise.
+    """
+    my_node = graph.node(nid)
+    if my_node.bound:
+        curr_props = node_props(nid)
+        # Remove properties
+        remove_props = [prop for prop in curr_props if prop not in properties]
+        for prop in remove_props:
+            del my_node[prop]
+        # Modify properties and add new properties
+        for prop in properties:
+            my_node[prop] = properties[prop]
+        # Now update node with new information
+        try:
+            my_node.push()
+        except batch.core.BatchError:
+            e = sys.exc_info()[1]
+            ec = sys.exc_info()[0]
+            log_msg = "Error Class: %s, Message: %s"
+            logging.critical(log_msg, ec, e)
+            return False
+        return True
     else:
         logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
         return False
