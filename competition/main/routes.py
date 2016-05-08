@@ -34,18 +34,42 @@ def logout():
 
 @main.route('/person/add', methods=['GET', 'POST'])
 @login_required
-def person_add():
-    name = None
-    form = PersonAdd()
-    person = mg.Person()
+def person_add(person_id=None):
+    if person_id:
+        person = mg.Person(person_id=person_id)
+        person_dict = person.props
+        name = person_dict['name']
+        mf = person_dict['mf']
+        form = PersonAdd(mf=mf)
+        form.name.data = name
+        if 'born' in person_dict:
+            form.born.data = person_dict['born']
+    else:
+        name = None
+        form = PersonAdd()
+        person = mg.Person()
     if form.validate_on_submit():
-        name = form.name.data
+        person_dict = dict(name=form.name.data, mf=form.mf.data)
+        if form.born.data:
+            person_dict['born'] = form.born.data
+        name = person_dict['name']
         form.name.data = ''
-        if person.add(name):
+        if person.add(**person_dict):
             flash(name + ' created as a Person (participant)')
         else:
             flash(name + ' does exist already, not created.')
     return render_template('person_add.html', form=form, name=name)
+
+
+@main.route('/person/edit/<pers_id>', methods=['GET', 'POST'])
+@login_required
+def person_edit(pers_id):
+    """
+    This method will edit the person's information.
+    :param pers_id:
+    :return:
+    """
+    person_add(person_id=pers_id)
 
 
 @main.route('/person/list')

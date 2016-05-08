@@ -211,21 +211,21 @@ class Person:
             logging.debug("No person found")
             return False
 
-    def add(self, name):
+    def add(self, **properties):
         """
         Attempt to add the participant with name 'name'. The name must be unique. Person object is set to current
         participant. Name is set in this procedure, ID is set in the find procedure.
-        :param name: Name of the participant
+        :param properties: Properties (in dict) for the person
         :return: True, if registered. False otherwise.
         """
-        self.name = name
+        self.name = properties['name']
         if self.find():
             # Person is found, Name and ID set, no need to register.
             return False
         else:
             # Person not found, register participant.
-            name = Node("Person", name=self.name)
-            graph.create(name)
+            person = Node("Person", **properties)
+            graph.create(person)
             # Now call find() again to set ID for the person
             self.find()
             return True
@@ -252,6 +252,13 @@ class Person:
 
     def get(self):
         return self.name
+
+    def props(self):
+        """
+        This method will return the properties for the node in a dictionary format.
+        :return:
+        """
+        return node_props(nid=self.person_id)
 
 
 class Organization:
@@ -673,6 +680,21 @@ def node_id(node):
     else:
         logging.error("Node expected, but got {nodetype}".format(nodetype=type(node)))
         return -1
+
+
+def node_props(nid=None):
+    """
+    This method will get a node and return the node properties in a dictionary.
+    :param nid: ID of the node required
+    :return: Dictionary of the node properties
+    """
+    my_node = graph.node(nid)
+    if my_node.bound:
+        logging.debug("Node Properties: {props}".format(props=my_node.properties))
+        return my_node.properties
+    else:
+        logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
+        return False
 
 
 def next_participant(race_id):

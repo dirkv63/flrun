@@ -1,23 +1,25 @@
 from flask_wtf import Form
-from wtforms import StringField, SubmitField, PasswordField, BooleanField, SelectField
+from wtforms import StringField, SubmitField, PasswordField, BooleanField, SelectField, RadioField
 from wtforms.fields.html5 import DateField
-from wtforms.validators import DataRequired, Length
+import wtforms.validators as wtv
 
 
 class PersonAdd(Form):
-    name = StringField('Participant: ', validators=[DataRequired(), Length(1, 24)])
+    name = StringField('Participant: ', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
+    mf = RadioField(choices=[('man', 'man'), ('vrouw', 'vrouw')], default='man', validators=[wtv.InputRequired()])
+    born = DateField('Geboren: ', validators=[wtv.Optional()])
     submit = SubmitField('Submit')
 
 
 class OrganizationAdd(Form):
-    name = StringField('Naam', validators=[DataRequired(), Length(1, 24)])
-    location = StringField('Plaats', validators=[DataRequired(), Length(1, 24)])
+    name = StringField('Naam', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
+    location = StringField('Plaats', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
     datestamp = DateField('Datum')
     submit = SubmitField('OK')
 
 
 class RaceAdd(Form):
-    name = StringField('Naam', validators=[DataRequired(), Length(1, 12)])
+    name = StringField('Naam', validators=[wtv.InputRequired(), wtv.Length(1, 12)])
     raceType = SelectField('Type Wedstrijd', coerce=int)
     submit = SubmitField('OK')
 
@@ -37,7 +39,7 @@ class ParticipantRemove(Form):
 
 
 class Login(Form):
-    username = StringField('Username', validators=[DataRequired(), Length(1, 16)])
-    password = PasswordField('Password', validators=[DataRequired()])
+    username = StringField('Username', validators=[wtv.InputRequired(), wtv.Length(1, 16)])
+    password = PasswordField('Password', validators=[wtv.InputRequired()])
     remember_me = BooleanField('Remember me')
     submit = SubmitField('OK')
