@@ -220,17 +220,9 @@ def participant_add(race_id):
         # runner_obj.set(runner_id)
         # runner = runner_obj.get()
         prev_runner_id = form.prev_runner.data
-        if prev_runner_id > 0:
-            # I got previous runner name, find associated participant ID
-            prev_part = mg.Participant(pers_id=prev_runner_id, race_id=race_id)
-            prev_part_id = prev_part.get_id()
-        else:
-            # There is no previous runner, this runner is the first finisher in the race.
-            prev_part_id = -1
         # Create the participant node, connect to person and to race.
-        part = mg.Participant(race_id=race_id, pers_id=runner_id)
-        part.add(prev_part_id=prev_part_id)
-        # participant.add(race_id=race_id, part_id=runner_id)
+        part = mg.Participant()
+        part.add(race_id=race_id, pers_id=runner_id, prev_pers_id=prev_runner_id)
         return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.

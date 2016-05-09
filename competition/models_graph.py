@@ -14,14 +14,12 @@ class Participant:
         self.part_id = -1
         self.prev_runner_id = -1
         self.next_runner_id = -1
-        self.race_id = -1
         if part_id:
             logging.debug("Set Participant with ID: {part_id}".format(part_id=part_id))
             self.part, self.part_id = self.set(part_id)
         elif pers_id and race_id:
             logging.debug("Set Participant from person with ID: {pers_id}".format(pers_id=pers_id))
-            self.part, self.part_id = self.part_race(race_id=race_id, pers_id=pers_id)
-            self.race_id = race_id
+            self.part, self.part_id = self.get_part_race(race_id=race_id, pers_id=pers_id)
 
     @staticmethod
     def set(part_id):
@@ -39,11 +37,11 @@ class Participant:
         """
         return self.part_id
 
-    def part_race(self, race_id=None, pers_id=None):
+    def get_part_race(self, race_id=None, pers_id=None):
         """
         This method will get the participant from Person ID and Race ID. If the participant exists already, it will
-        be returned. If the participant did not exist already, the participant node will be created. Then the node will
-        be connected to the person and to the race.
+        be returned. If the participant did not exist already, it will return False.
+        Use the method set_part_race to set a participant in the race.
         :param race_id: Node ID of the Race
         :param pers_id: Node ID of the Person
         :return: Participant Object, created or existing.
@@ -55,51 +53,76 @@ class Participant:
         """.format(pers_id=pers_id, race_id=race_id)
         res = graph.cypher.execute(query)
         logging.debug("Res: {res}".format(res=res))
-        if len(res) == 0:
-            self.part, = graph.create(Node("Participant"))  # Create returns tuple
-            self.part_id = node_id(self.part)
-            race = graph.node(race_id)
-            graph.create(Relationship(self.part, "participates", race))
-            runner = graph.node(pers_id)
-            graph.create(Relationship(runner, "is", self.part))
-        else:
+        if len(res) > 0:
             self.part, self.part_id = res[0]
-        return self.part, self.part_id
+            return self.part, self.part_id
+        else:
+            return False
 
-    def add(self, prev_part_id=-1):
+    def set_part_race(self, race_id=Node, pers_id=None):
+        """
+        This method will set the participant for the race. This can be done only when it is known the condition for the
+        previous and next runner. Otherwise the function 'find_first_participant' will fail.
+        :param race_id: Node ID of the race.
+        :param pers_id: Node ID of the person.
+        :return: Node ID of the participant.
+        """
+        self.part, = graph.create(Node("Participant"))  # Create returns tuple
+        self.part_id = node_id(self.part)
+        race = graph.node(race_id)
+        graph.create(Relationship(self.part, "participates", race))
+        runner = graph.node(pers_id)
+        graph.create(Relationship(runner, "is", self.part))
+        return self.part_id
+
+    def add(self, pers_id=None, prev_pers_id=-1, race_id=None):
         """
         Check if there is a next participant for this participant, so if current runner enters an existing sequence.
-        :param prev_part_id:
+        Create the person participant node only when the relations are known. Otherwise the new participant node can
+        conflict with the sequence asked for.
+        :param pers_id: Node ID of the person to add to the participant sequence.
+        :param prev_pers_id: Node ID of the previous person, or -1 if the person is the first arrival.
+        :param race_id: Node ID of the race to which the person needs to be added.
         :return:
         """
-        logging.debug("Add participant {id} to previous participant {prev_id}"
-                      .format(id=self.part_id, prev_id=prev_part_id))
-        if prev_part_id > 0:
+        logging.debug("Add person {id} to previous person {prev_id} for race {race_id}"
+                      .format(id=pers_id, prev_id=prev_pers_id, race_id=race_id))
+        if prev_pers_id > 0:
             logging.debug("Before create object for prev_part")
-            prev_part = Participant(part_id=prev_part_id)
+            prev_part = Participant(pers_id=prev_pers_id, race_id=race_id)
+            prev_part_id = prev_part.get_id()
             logging.debug("Object for prev_part is created")
             if prev_part.next_runner():
                 # The previous runner for this participant was not the last one so far in the race.
                 # Get next runner to assign as next runner for participant.
-                next_runner_id = prev_part.next_runner()
-                # Remove 'after' relation between prev_part and next_part
-                remove_relation(next_runner_id, prev_part_id, "after")
+                next_part_id = prev_part.next_runner()
+                # Create the participant node for this person
+                self.set_part_race(race_id=race_id, pers_id=pers_id)
+                # Add link between part and next_part
+                self.set_relation(prev_id=self.part_id, next_id=next_part_id)
                 # Add link between prev_part and part
                 self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
-                # Add link between part and next_part
-                self.set_relation(prev_id=self.part_id, next_id=next_runner_id)
+                # Remove 'after' relation between prev_part and next_part
+                remove_relation(next_part_id, prev_part_id, "after")
             else:
                 # Previous participant but no next participant
+                # Create the participant node for this person
+                self.set_part_race(race_id=race_id, pers_id=pers_id)
                 # Add link between prev_part and this participant only. This participant is last finisher so far in race
                 self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
         else:
             # No previous participant. Find current first participant in race
             # If found: Add link between participant and next_participant.
-            first_person_id = participant_first_id(self.race_id)
+            first_person_id = participant_first_id(race_id)
             if first_person_id > -1:
-                first_part = Participant(race_id=self.race_id, pers_id=first_person_id)
+                first_part = Participant(race_id=race_id, pers_id=first_person_id)
                 first_part_id = first_part.get_id()
+                # Create the participant node for this person
+                self.set_part_race(race_id=race_id, pers_id=pers_id)
                 self.set_relation(prev_id=self.part_id, next_id=first_part_id)
+            else:
+                # Create the participant node for this person
+                self.set_part_race(race_id=race_id, pers_id=pers_id)
         return
 
     @staticmethod
@@ -674,6 +697,8 @@ def participant_first_id(race_id):
         person_id = int(finisher_list[0][0])
     else:
         person_id = -1
+    logging.debug("This is person_id {person_id} from finisher_list {fl} - race_id {race_id}"
+                  .format(person_id=person_id, fl=finisher_list, race_id=race_id))
     return person_id
 
 
