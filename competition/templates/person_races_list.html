@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros %}
+
+{% block page_content %}
+<div class="row">
+    {{ macros.person_list(persons) }}
+    <div class="col-md-6">
+    <h3>{{ pers_label }}</h3>
+        {% if current_user.is_authenticated %}
+            <ul>
+                <li><a href="{{ url_for('main.person_edit', pers_id=pers_id) }}">Aanpassen</a></li>
+            {% if conns == 0 %}
+                <li><a href="{{ url_for('main.person_delete', pers_id=pers_id) }}">Verwijder</a></li>
+            {% endif %}
+            </ul>
+        {% endif %}
+        <div class="row">
+            <div class="col-md-6">
+                <table class="table table-hover">
+                    <tr>
+                        <th>Wedstrijden</th>
+                        <!--
+                        <th>Type</th>
+                        -->
+                    </tr>
+                    {% for row in races %}
+                    <tr>
+                        <!--
+                        <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race }}</a></td>
+                        -->
+                        <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race_label }}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

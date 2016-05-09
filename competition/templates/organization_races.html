@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+{% block page_content %}
+<h2>{{ org_label }}</h2>
+<a href="{{ url_for('main.race_add', org_id=org_id) }}">Wedstrijd toevoegen</a>
+<div class="row">
+    <div class="col-md-6">
+        <table class="table table-hover">
+            <tr>
+                <th>Wedstrijden</th>
+<!--
+                <th>Type</th>
+                -->
+            </tr>
+            {% for row in races %}
+            <tr>
+                <!--
+                <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race }}</a></td>
+                -->
+                <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race}}</a></td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+</div>
+{% endblock %}

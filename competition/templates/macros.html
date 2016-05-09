@@ -1,0 +1,60 @@
+{% macro org_row(date, city, org, org_id) %}
+    <tr>
+        <td>{{ date }}</td>
+        <td>{{ city }}</td>
+        <td><a href="{{ url_for('main.race_list', org_id=org_id) }}">{{ org }}</a></td>
+    </tr>
+{% endmacro %}
+
+{% macro part_row(name, part_id) %}
+    <tr>
+        <td><a href="{{ url_for('main.person_summary', part_id=part_id) }}">{{ name }}</a></td>
+        {% if current_user.is_authenticated %}
+        <td><a href="{{ url_for('main.person_delete', part_id=part_id) }}">Verwijder</a></td>
+        {% endif %}
+    </tr>
+{% endmacro %}
+
+{% macro race_finishers(finishers, race_id) %}
+<h3>Aankomsten</h3>
+    <div class="col-md-5">
+        <table class="table table-hover">
+            <tr>
+                <th>Plaats</th>
+                <th>Naam</th>
+                <th>Verwijderen</th>
+            </tr>
+            {% for row in finishers %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>
+                    <a href="{{ url_for('main.person_summary', pers_id=row[0]) }}">
+                        {{ row[1] }}
+                    </a>
+                </td>
+                <td>
+                    <a href="{{ url_for('main.participant_remove', pers_id=row[0], race_id=race_id) }}">
+                        <img src="/static/button_cancel.png" width="25" height="25">
+                    </a>
+                </td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endmacro %}
+
+{% macro person_list(persons) %}
+    <div class="col-md-3">
+        <h3>Overzicht Deelnemers</h3>
+        <table class="table table-hover">
+            <tr>
+                <th>Naam</th>
+            </tr>
+            {% for row in persons %}
+            <tr>
+                <td><a href="{{ url_for('main.person_summary', pers_id=row.id) }}">{{ row.name }}</a></td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+{% endmacro %}

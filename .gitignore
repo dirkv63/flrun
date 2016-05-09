@@ -6,7 +6,6 @@
 *.dot
 *.dot-input
 *.gif
-*html*
 *.mwb.bak
 */__pycache__/*
 .idea/*

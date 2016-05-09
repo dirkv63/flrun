@@ -1,0 +1,14 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block page_content %}
+<h2>{{ race_label }}</h2>
+De deelnemers moeten (voorlopig nog) toegevoegd worden in volgorde van aankomst.
+<div class="row">
+{{ macros.race_finishers(finishers, race_id) }}
+    <div class="col-md-3">
+        {{ wtf.quick_form(form) }}
+    </div>
+</div>
+{% endblock %}
