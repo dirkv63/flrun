@@ -1,7 +1,8 @@
 import logging
 import sys
-from py2neo import Graph, Node, Relationship, batch
+from py2neo import Graph, Node, Relationship
 from py2neo.ext.calendar import GregorianCalendar
+import competition.p2n_wrapper as pu
 
 graph = Graph()
 calendar = GregorianCalendar(graph)
@@ -68,7 +69,7 @@ class Participant:
         :return: Node ID of the participant.
         """
         self.part, = graph.create(Node("Participant"))  # Create returns tuple
-        self.part_id = node_id(self.part)
+        self.part_id = pu.node_id(self.part)
         race = graph.node(race_id)
         graph.create(Relationship(self.part, "participates", race))
         runner = graph.node(pers_id)
@@ -103,7 +104,7 @@ class Participant:
                 # Add link between prev_part and part
                 self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
                 # Remove 'after' relation between prev_part and next_part
-                remove_relation(next_part_id, prev_part_id, "after")
+                pu.remove_relation(next_part_id, prev_part_id, "after")
             else:
                 # Previous participant but no next participant
                 # Create the participant node for this person
@@ -138,7 +139,7 @@ class Participant:
             if 'Participant' in node.labels:
                 return True
             else:
-                nid = node_id(node)
+                nid = pu.node_id(node)
                 logging.error("Got node ID {nid}, but this is not of type participant".format(nid=nid))
         else:
             logging.error("Expected object type Node, got {obj_type}".format(obj_type=type(node)))
@@ -173,7 +174,7 @@ class Participant:
             self.prev_runner_id = -2
             return False
         else:
-            self.prev_runner_id = node_id(rel.end_node)
+            self.prev_runner_id = pu.node_id(rel.end_node)
             return self.prev_runner_id
 
     def next_runner(self):
@@ -192,7 +193,7 @@ class Participant:
             self.next_runner_id = -2
             return False
         else:
-            self.next_runner_id = node_id(rel.start_node)
+            self.next_runner_id = pu.node_id(rel.start_node)
             return self.next_runner_id
 
     def remove(self):
@@ -205,7 +206,7 @@ class Participant:
             rel = Relationship(graph.node(self.next_runner_id), "after", graph.node(self.prev_runner_id))
             graph.create(rel)
         # Remove Participant Node
-        remove_node_force(self.part_id)
+        pu.remove_node_force(self.part_id)
         # Reset Object
         self.part_id = -1
         self.part = None
@@ -260,7 +261,7 @@ class Person:
         :param properties: New set of properties for the node
         :return: True - in case node is rewritten successfully.
         """
-        node_update(self.person_id, **properties)
+        pu.node_update(self.person_id, **properties)
         return True
 
     def set(self, person_id):
@@ -291,7 +292,7 @@ class Person:
         This method will return the properties for the node in a dictionary format.
         :return:
         """
-        return node_props(nid=self.person_id)
+        return pu.node_props(nid=self.person_id)
 
 
 class Organization:
@@ -531,6 +532,26 @@ def organization_list():
     return graph.cypher.execute(query)
 
 
+def get_org_id(race_id):
+    """
+    This method will return the organization ID for a Race ID: Organization has Race.
+    :param race_id: Node ID of the race.
+    :return: Node ID of the organization.
+    """
+    org_id = pu.get_start_node(end_node_id=race_id, rel_type="has")
+    return org_id
+
+
+def get_races_for_org(org_id):
+    """
+    This method will return the list of races for an Organization ID: Organization has Race.
+    :param org_id: Node ID of the Organization.
+    :return: List of node IDs of races.
+    """
+    races = pu.get_end_nodes(start_node_id=org_id, rel_type="has")
+    return races
+
+
 def race_list(org_id):
     query = """
         MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(racetype:RaceType)
@@ -604,7 +625,7 @@ def person4participant(part_id):
     rel = next(item for item in graph.match(end_node=part, rel_type="is"))
     # logging.debug("Node: {node}".format(node=rel.start_node.ref))
     pers_name = rel.start_node["name"]
-    pers_id = node_id(rel.start_node)
+    pers_id = pu.node_id(rel.start_node)
     return dict(name=pers_name, id=pers_id)
 
 
@@ -651,7 +672,7 @@ def participant_seq_list(race_id):
             rel = next(item for item in graph.match(end_node=part, rel_type="is"))
             logging.debug("Node: {node}".format(node=rel.start_node.ref))
             pers_name = rel.start_node["name"]
-            pers_id = node_id(rel.start_node)
+            pers_id = pu.node_id(rel.start_node)
             logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_id))
             pers_obj = [pers_id, pers_name]
             finisher_list.append(pers_obj)
@@ -702,146 +723,26 @@ def participant_first_id(race_id):
     return person_id
 
 
-def node_id(node):
-    """
-    This method gets a node and returns the node ID. In py2neo 2.08 node.ref returns 'node/id'. This function will
-    strip 'node/' and return the id.
-    :param node: Node object
-    :return: ID of the node
-    """
-    if type(node) is Node:
-        nid = node.ref[5:]
-        return nid
-    else:
-        logging.error("Node expected, but got {nodetype}".format(nodetype=type(node)))
-        return -1
-
-
-def node_props(nid=None):
-    """
-    This method will get a node and return the node properties in a dictionary.
-    :param nid: ID of the node required
-    :return: Dictionary of the node properties
-    """
-    my_node = graph.node(nid)
-    if my_node.bound:
-        logging.debug("Node Properties: {props}".format(props=my_node.properties))
-        return my_node.properties
-    else:
-        logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
-        return False
-
-
-def node_update(nid, **properties):
-    """
-    This method will update the node's properties with the properties specified. Modified properties will be updated,
-    new properties will be added and removed properties will be deleted.
-    :param nid: ID of the node to modify.
-    :param properties: Dictionary of the property set for the node.
-    :return: True if successful update, False otherwise.
-    """
-    my_node = graph.node(nid)
-    if my_node.bound:
-        curr_props = node_props(nid)
-        # Remove properties
-        remove_props = [prop for prop in curr_props if prop not in properties]
-        for prop in remove_props:
-            del my_node[prop]
-        # Modify properties and add new properties
-        for prop in properties:
-            my_node[prop] = properties[prop]
-        # Now update node with new information
-        try:
-            my_node.push()
-        except batch.core.BatchError:
-            e = sys.exc_info()[1]
-            ec = sys.exc_info()[0]
-            log_msg = "Error Class: %s, Message: %s"
-            logging.critical(log_msg, ec, e)
-            return False
-        return True
-    else:
-        logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
-        return False
-
-
 def next_participant(race_id):
     """
     This method will get the list of potential next participants. This is the list of all persons minus the people that
-    have been selected already in this race.
+    have been selected already in this race. Also all people that have been selected in other races for this
+    organization will no longer be available for selection.
     :param race_id:
     :return:
     """
     # Todo: extend to participants that have been selected for this organization (one participation per race per org.)
-    participants = participant_list(race_id)
+    # Get Organization for this race
+    # org_id = get_org_id(race_id)
+    org_id = get_org_id(race_id)
+    races = get_races_for_org(org_id)
+    participants = []
+    for race_id in races:
+        parts_race = participant_list(race_id)
+        participants += parts_race
     persons = person_list()
     next_participants = [part for part in persons if part not in participants]
     return next_participants
-
-
-def relations(nid):
-    """
-    This method will check if node with ID has relations. Returns True if there are relations, returns False otherwise.
-    :param nid: ID of the object to check relations
-    :return: True - if there are relations, False - there are no relations.
-    """
-    logging.debug("In method relations for id {node_id}".format(node_id=nid))
-    obj_node = graph.node(nid)
-    if obj_node.degree:
-        logging.debug("Relations found")
-        return True
-    else:
-        logging.debug("No Relations found")
-        return False
-
-
-def remove_node(nid):
-    """
-    This method will remove node with ID node_id. Nodes can be removed only if there are no relations attached to the
-    node.
-    :param nid:
-    :return: True if node is deleted, False otherwise
-    """
-    if relations(nid):
-        logging.error("Request to delete node ID {node_id}, but relations found. Node not deleted"
-                      .format(node_id=nid))
-        return False
-    else:
-        query = "MATCH (n) WHERE id(n)={node_id} DELETE n"
-        graph.cypher.execute(query.format(node_id=nid))
-        return True
-
-
-def remove_node_force(nid):
-    """
-    This method will remove node with ID node_id. The node and the relations to/from the node will also be deleted.
-    Use 'remove_node' to remove nodes only when there should be no relations attached to it.
-    :param nid: ID of the node
-    :return: True if node is deleted, False otherwise
-    """
-    query = "MATCH (n) WHERE id(n)={node_id} DETACH DELETE n"
-    graph.cypher.execute(query.format(node_id=nid))
-    return True
-
-
-def remove_relation(start_nid, end_nid, rel_type):
-    """
-    This method will remove the relation rel_type between Node with ID start_nid and Node with ID end_id. Relation is
-    of type rel_type.
-    :param start_nid: Node ID of the start node.
-    :param end_nid: Node ID of the end node.
-    :param rel_type: Type of the relation
-    :return:
-    """
-    query = """
-        MATCH (start_node)-[rel_type:{rel_type}]->(end_node)
-        WHERE id(start_node)={start_nid}
-          AND id(end_node)={end_nid}
-        DELETE rel_type
-    """.format(rel_type=rel_type, start_nid=start_nid, end_nid=end_nid)
-    logging.debug("Remove query looks like: {query}".format(query=query))
-    graph.cypher.execute(query)
-    return
 
 
 def init_graph(config):
