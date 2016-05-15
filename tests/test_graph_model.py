@@ -36,13 +36,13 @@ class GraphModelTestCase(unittest.TestCase):
             raise e
 
     def test_graph_find_user(self):
-        r = self.client.get('/participant/list')
+        r = self.client.get_label('/participant/list')
         self.assertEqual(r.status_code, 200)
         self.assertTrue('<td>Jean-Pierre</td>' in r.get_data(as_text=True))
         self.assertFalse('<td>Dirkske</td>' in r.get_data(as_text=True))
 
     def test_login(self):
-        r = self.client.get('/login')
+        r = self.client.get_label('/login')
         self.assertEqual(r.status_code, 200)
         self.assertTrue('<h1>Login</h1>' in r.get_data(as_text=True))
         r = self.client.post('/login',
@@ -52,7 +52,7 @@ class GraphModelTestCase(unittest.TestCase):
         return
 
     def test_register_user(self):
-        r = self.client.get('/participant/register')
+        r = self.client.get_label('/participant/register')
         self.assertEqual(r.status_code, 200)
         self.assertTrue('<h2>Register Participant</h2>' in r.get_data(as_text=True))
         r = self.client.post('/participant/register',

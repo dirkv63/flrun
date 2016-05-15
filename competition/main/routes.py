@@ -172,16 +172,17 @@ def organization_list():
 
 @main.route('/organization/edit/<org_id>', methods=['GET', 'POST'])
 @login_required
-def organization_edit():
+def organization_edit(org_id):
     """
     This method will edit an existing organization.
+    :param org_id: The Node ID of the organization.
     :return:
     """
     current_app.logger.debug("Evaluate Organization/edit")
     org = mg.Organization(org_id=org_id)
     name = org.name
-    location = org.location
-    datestamp = org.date
+    location = org.get_location()
+    datestamp = org.get_date()
     form = OrganizationAdd()
     if form.validate_on_submit():
         name = form.name.data
@@ -199,6 +200,9 @@ def organization_edit():
         current_app.logger.debug("Not yet ready to add organization")
         # Form did not validate successfully, keep fields.
         organizations = mg.organization_list()
+        form.name.data = name
+        form.location.data = location
+        form.datestamp.data = datetime.datetime.strptime(datestamp, '%Y-%m-%d').date()
         return render_template('organization_add.html', form=form, name=name, location=location,
                                datestamp=datestamp, organizations=organizations)
 
@@ -214,7 +218,7 @@ def race_list(org_id):
     current_app.logger.debug("org_id: " + org_id)
     org = mg.Organization()
     org.set(org_id)
-    org_label = org.get()
+    org_label = org.get_label()
     races = mg.race_list(org_id)
     return render_template('/organization_races.html', org_label=org_label, org_id=org_id, races=races)
 

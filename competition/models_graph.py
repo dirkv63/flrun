@@ -302,9 +302,10 @@ class Organization:
     def __init__(self, org_id=None):
         self.name = 'NotYetDefined'
         self.org_id = -1
-        self.label = 'NotYetDefined'
+        self.org_node = None
+        self.label = "NotYetDefined"
         if org_id:
-            self.org_node = pu.
+            self.set(org_id)
 
     def find(self, name, location, datestamp):
         """
@@ -317,7 +318,7 @@ class Organization:
         """
         query = """
         MATCH (day:Day {key: {datestamp}})<-[:On]-(org:Organization {name: {name}}),
-        (org)-[:In]->(loc:Location {city: {location}})
+              (org)-[:In]->(loc:Location {city: {location}})
         RETURN id(org) as org_id
         """
         org_id_arr = graph.cypher.execute(query, name=name, location=location, datestamp=datestamp)
@@ -326,11 +327,15 @@ class Organization:
             return False
         elif len(org_id_arr) == 1:
             # Organization ID found, remember organization attributes
-            self.set(org_id_arr[0].org_id)
-            return True
+            self.org_id = org_id_arr[0].org_id
+            self.set(self.org_id)
+            return self.org_id
         else:
-            # Todo - Error handling is required to handle more than one array returned.
-            sys.exit()
+            tot_len = len(org_id_arr)
+            logging.error("Expected to find 0 or 1 organization, found {tot_len} (Organization: {name}, "
+                          "Location: {loc}, Date: {date}"
+                          .format(tot_len=tot_len, name=name, loc=location, date=datestamp))
+            return False
 
     def add(self, name, location, datestamp, org_type):
         """
@@ -373,9 +378,9 @@ class Organization:
         """
         logging.debug("Org ID: {org_id}".format(org_id=org_id))
         query = """
-        MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
-        WHERE id(org) = {org_id}
-        RETURN day.key as date, org.name as org, loc.city as city
+            MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
+            WHERE id(org) = {org_id}
+            RETURN day.key as date, org.name as org, loc.city as city, org as org_node
         """.format(org_id=org_id)
         org_array = graph.cypher.execute(query)
         this_org = org_array[0]
@@ -386,10 +391,36 @@ class Organization:
         logging.debug("Label: {label}".format(label=self.label))
         self.name = this_org.org
         self.org_id = org_id
+        self.org_node = this_org.org_node
         return True
 
-    def get(self):
+    def get_label(self):
+        """
+        This method will return the label of the Organization. (Organization name, city and date). Assumption is that
+        the organization has been set already.
+        :return:
+        """
         return self.label
+
+    def get_location(self):
+        """
+        This method will return the location for the Organization.
+        :return: Organization, or False if no organization found.
+        """
+        loc_id = pu.get_end_node(self.org_id, "In")
+        loc_node = pu.node(loc_id)
+        city = loc_node["city"]
+        return city
+
+    def get_date(self):
+        """
+        This method will return the date for the Organization.
+        :return: Date, Format YYYY-MM-DD
+        """
+        date_id = pu.get_end_node(self.org_id, "On")
+        date_node = pu.node(date_id)
+        datestamp = date_node["key"]
+        return datestamp
 
 
 class Race:
@@ -792,7 +823,7 @@ def init_graph(config):
     hoofdwedstrijd.push()
     bijwedstrijd.push()
     deelname.push()
-    #OrgType
+    # OrgType
     wedstrijd = graph.merge_one("OrgType", "name", "Wedstrijd")
     org_deelname = graph.merge_one("OrgType", "name", "Deelname")
     wedstrijd['beschrijving'] = config['OrgType']['wedstrijd']
