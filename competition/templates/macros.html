@@ -1,9 +1,20 @@
-{% macro org_row(date, city, org, org_id) %}
-    <tr>
-        <td>{{ date }}</td>
-        <td>{{ city }}</td>
-        <td><a href="{{ url_for('main.race_list', org_id=org_id) }}">{{ org }}</a></td>
-    </tr>
+{% macro org_list(organizations) %}
+    <div class="col-md-6">
+        <table class="table table-hover">
+            <tr>
+                <th>Datum</th>
+                <th>Plaats</th>
+                <th>Naam</th>
+            </tr>
+            {% for row in organizations %}
+                <tr>
+                    <td>{{ row.date }}</td>
+                    <td>{{ row.city }}</td>
+                    <td><a href="{{ url_for('main.race_list', org_id=row.id) }}">{{ row.organization }}</a></td>
+                </tr>
+            {% endfor %}
+        </table>
+    </div>
 {% endmacro %}
 
 {% macro part_row(name, part_id) %}
@@ -45,7 +56,7 @@
 
 {% macro person_list(persons) %}
     <div class="col-md-3">
-        <h3>Overzicht Deelnemers</h3>
+        <h3>Overzicht</h3>
         <table class="table table-hover">
             <tr>
                 <th>Naam</th>

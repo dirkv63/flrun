@@ -1,6 +1,7 @@
 import competition.models_graph as mg
 # import logging
 import datetime
+import competition.p2n_wrapper as pu
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
@@ -50,8 +51,8 @@ def person_add(person_id=None):
         else:
             name = None
             form = PersonAdd()
-            person = mg.Person()
-    elif request.method == "POST":
+    else:
+        # request.method == "POST":
         form = PersonAdd()
         name = None
         if form.validate_on_submit():
@@ -66,12 +67,11 @@ def person_add(person_id=None):
                 person.edit(**person_dict)
             else:
                 person = mg.Person()
-                if person.add(**person_dict):
-                    flash(name + ' created as a Person (participant)')
-                else:
-                    flash(name + ' does exist already, not created.')
-            return redirect(url_for('main.person_list'))
-    return render_template('person_add.html', form=form, name=name)
+                if not person.add(**person_dict):
+                    flash(name + ' bestaat reeds, niet toegevoegd.')
+            return redirect(url_for('main.person_add'))
+    persons = mg.person_list()
+    return render_template('person_add.html', form=form, name=name, persons=persons)
 
 
 @main.route('/person/edit/<pers_id>', methods=['GET', 'POST'])
@@ -107,7 +107,7 @@ def person_summary(pers_id):
     races = mg.races4person(pers_id)
     # Don't count on len(races), since this is this competition races. Remove person only if not used across all
     # competitions.
-    if mg.relations(pers_id):
+    if pu.relations(pers_id):
         conns = 1
     else:
         conns = 0
@@ -128,16 +128,17 @@ def person_delete(pers_id):
     part = mg.Person()
     part.set(pers_id)
     # part_name = part.get_name()
-    if mg.relations(pers_id):
+    if pu.relations(pers_id):
         current_app.logger.warning("Request to delete id {pers_id} but relations found".format(pers_id=pers_id))
     else:
-        mg.remove_node(pers_id)
+        pu.remove_node(pers_id)
     return redirect(url_for('main.person_list'))
 
 
 @main.route('/organization/add', methods=['GET', 'POST'])
 @login_required
 def organization_add():
+    current_app.logger.debug("Evaluate Organization/add")
     name = None
     location = None
     datestamp = None
@@ -146,15 +147,20 @@ def organization_add():
         name = form.name.data
         location = form.location.data
         datestamp = form.datestamp.data
-        if mg.Organization().add(name, location, datestamp):
-            flash(name + ' created as an Organization')
+        org_type = form.org_type.data
+        current_app.logger.debug("Ready to add organization")
+        if mg.Organization().add(name, location, datestamp, org_type):
+            flash(name + ' toegevoegd als organizatie')
         else:
-            flash(name + ' does exist already, not created.')
+            flash(name + ' bestaat reeds, niet toegevoegd.')
         # Form validated successfully, clear fields!
         return redirect(url_for('main.organization_add'))
     else:
+        current_app.logger.debug("Not yet ready to add organization")
         # Form did not validate successfully, keep fields.
-        return render_template('organization_add.html', form=form, name=name, location=location, datestamp=datestamp)
+        organizations = mg.organization_list()
+        return render_template('organization_add.html', form=form, name=name, location=location,
+                               datestamp=datestamp, organizations=organizations)
 
 
 @main.route('/organization/list')
@@ -162,6 +168,39 @@ def organization_list():
     organizations = mg.organization_list()
     current_app.logger.debug(organizations)
     return render_template('organization_list.html', organizations=organizations)
+
+
+@main.route('/organization/edit/<org_id>', methods=['GET', 'POST'])
+@login_required
+def organization_edit():
+    """
+    This method will edit an existing organization.
+    :return:
+    """
+    current_app.logger.debug("Evaluate Organization/edit")
+    org = mg.Organization(org_id=org_id)
+    name = org.name
+    location = org.location
+    datestamp = org.date
+    form = OrganizationAdd()
+    if form.validate_on_submit():
+        name = form.name.data
+        location = form.location.data
+        datestamp = form.datestamp.data
+        org_type = form.org_type.data
+        current_app.logger.debug("Ready to add organization")
+        if mg.Organization().add(name, location, datestamp, org_type):
+            flash(name + ' toegevoegd als organizatie')
+        else:
+            flash(name + ' bestaat reeds, niet toegevoegd.')
+        # Form validated successfully, clear fields!
+        return redirect(url_for('main.organization_add'))
+    else:
+        current_app.logger.debug("Not yet ready to add organization")
+        # Form did not validate successfully, keep fields.
+        organizations = mg.organization_list()
+        return render_template('organization_add.html', form=form, name=name, location=location,
+                               datestamp=datestamp, organizations=organizations)
 
 
 @main.route('/race/<org_id>/list')

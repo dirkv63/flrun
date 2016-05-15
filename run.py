@@ -21,4 +21,4 @@ if __name__ == "__main__":
         db.create_all()
         if User.query.filter_by(username='dirk').first() is None:
             User.register('dirk', 'olse')
-    app.run()
+    app.run(host='0.0.0.0')

@@ -299,10 +299,12 @@ class Organization:
     """
     This class instantiates to an organization.
     """
-    def __init__(self):
+    def __init__(self, org_id=None):
         self.name = 'NotYetDefined'
         self.org_id = -1
         self.label = 'NotYetDefined'
+        if org_id:
+            self.org_node = pu.
 
     def find(self, name, location, datestamp):
         """
@@ -330,7 +332,7 @@ class Organization:
             # Todo - Error handling is required to handle more than one array returned.
             sys.exit()
 
-    def add(self, name, location, datestamp):
+    def add(self, name, location, datestamp, org_type):
         """
         This method will check if the organization is registered already. If not, the organization graph object
         (exists of organization name with link to date and city where it is organized) will be created.
@@ -338,10 +340,11 @@ class Organization:
         :param name: Name of the organization
         :param location: City where the organization takes place
         :param datestamp: Date of the organization.
+        :param org_type: Organization Type. 1: Wedstrijd - 2. Deelname
         :return: True if the organization has been registered, False if it existed already.
         """
-        logging.debug("Name: {name}, Location: {location}, Date: {datestamp}"
-                      .format(name=name, location=location, datestamp=type(datestamp)))
+        logging.debug("Name: {name}, Location: {location}, Date: {datestamp}, Type: {org_type}"
+                      .format(name=name, location=location, datestamp=type(datestamp), org_type=org_type))
         if self.find(name, location, datestamp):
             # No need to register (Organization exist already), and organization attributes are set.
             return False
@@ -351,9 +354,11 @@ class Organization:
             # year, month, day = [int(x) for x in datestamp.split('-')]
             date_node = calendar.date(datestamp.year, datestamp.month, datestamp.day).day   # Get Date (day) node
             org = Node("Organization", name=name)
+            org_type_node = get_org_type_node(org_type)
             graph.create(org)
             graph.create(Relationship(org, "On", date_node))
             graph.create(Relationship(org, "In", loc))
+            graph.create(Relationship(org, "type", org_type_node))
             # Set organization paarameters by finding the created organization
             self.find(name, location, datestamp)
             return True
@@ -540,6 +545,21 @@ def get_org_id(race_id):
     """
     org_id = pu.get_start_node(end_node_id=race_id, rel_type="has")
     return org_id
+
+
+def get_org_type_node(org_id):
+    """
+    This method will find the Organization Type Node.
+    :param org_id: RadioButton selected for Organization Type.
+    :return: Organization Type Node
+    """
+    if org_id == 1:
+        name = "Wedstrijd"
+    else:
+        name = "Deelname"
+    query = "MATCH (n:OrgType {name: {name}}) return n"
+    res = graph.cypher.execute(query, name=name)
+    return res[0][0]
 
 
 def get_races_for_org(org_id):
@@ -756,7 +776,9 @@ def init_graph(config):
     graph.cypher.execute(stmt.format('Location', 'city'))
     graph.cypher.execute(stmt.format('Person', 'name'))
     graph.cypher.execute(stmt.format('RaceType', 'name'))
+    graph.cypher.execute(stmt.format('OrgType', 'name'))
 
+    # RaceType
     hoofdwedstrijd = graph.merge_one("RaceType", "name", "Hoofdwedstrijd")
     bijwedstrijd = graph.merge_one("RaceType", "name", "Bijwedstrijd")
     deelname = graph.merge_one("RaceType", "name", "Deelname")
@@ -770,6 +792,13 @@ def init_graph(config):
     hoofdwedstrijd.push()
     bijwedstrijd.push()
     deelname.push()
+    #OrgType
+    wedstrijd = graph.merge_one("OrgType", "name", "Wedstrijd")
+    org_deelname = graph.merge_one("OrgType", "name", "Deelname")
+    wedstrijd['beschrijving'] = config['OrgType']['wedstrijd']
+    org_deelname['beschrijving'] = config['OrgType']['deelname']
+    wedstrijd.push()
+    org_deelname.push()
 
     return
 

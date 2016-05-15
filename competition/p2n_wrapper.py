@@ -8,18 +8,32 @@ from py2neo import Graph, Node, batch
 graph = Graph()
 
 
-def node_id(node):
+def node(nid):
+    """
+    This method will get a node ID and return a node, or false in case no Node can be associated with the ID.
+    :param nid: ID of the node to be found.
+    :return: Node, or False in case the node could not be found.
+    """
+    node_obj = graph.node(nid)
+    if node_obj.exists:
+        return node_obj
+    else:
+        logging.error("Non-existing node ID: {nid}".format(nid=nid))
+        return False
+
+
+def node_id(node_obj):
     """
     This method gets a node and returns the node ID. In py2neo 2.08 node.ref returns 'node/id'. This function will
     strip 'node/' and return the id as an integer.
-    :param node: Node object
+    :param node_obj: Node object
     :return: ID of the node (integer), or False.
     """
-    if type(node) is Node:
-        nid = node.ref[5:]
+    if type(node_obj) is Node:
+        nid = node_obj.ref[5:]
         return int(nid)
     else:
-        logging.error("Node expected, but got {nodetype}".format(nodetype=type(node)))
+        logging.error("Node expected, but got {nodetype}".format(nodetype=type(node_obj)))
         # Todo: this should return False if there is no node ID.
         return -1
 

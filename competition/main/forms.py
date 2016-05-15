@@ -5,16 +5,18 @@ import wtforms.validators as wtv
 
 
 class PersonAdd(Form):
-    name = StringField('Participant: ', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
+    name = StringField('Naam: ', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
     mf = RadioField(choices=[('man', 'man'), ('vrouw', 'vrouw')], default='man', validators=[wtv.InputRequired()])
     born = DateField('Geboren: ', validators=[wtv.Optional()])
-    submit = SubmitField('Submit')
+    submit = SubmitField('OK')
 
 
 class OrganizationAdd(Form):
     name = StringField('Naam', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
     location = StringField('Plaats', validators=[wtv.InputRequired(), wtv.Length(1, 24)])
     datestamp = DateField('Datum')
+    org_type = RadioField(choices=[(1, 'Wedstrijd'), (2, 'Deelname')], default=1, coerce=int,
+                          validators=[wtv.InputRequired()])
     submit = SubmitField('OK')
 
 

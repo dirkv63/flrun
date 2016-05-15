@@ -1,9 +1,11 @@
 {% extends "layout.html" %}
+{% import "macros.html" as macros %}
 {% import "bootstrap/wtf.html" as wtf %}
 
 {% block page_content %}
-<h2>Organisatie Toevoegen</h2>
+<h1>Organisatie Toevoegen</h1>
 <div class="row">
+    {{ macros.org_list(organizations) }}
     <div class="col-md-3">
         {{ wtf.quick_form(form) }}
     </div>
