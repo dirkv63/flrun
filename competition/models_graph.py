@@ -368,6 +368,19 @@ class Organization:
             self.find(name, location, datestamp)
             return True
 
+    def edit(self, **properties):
+        """
+        This method will check if the organization is registered already. If not, the organization graph object
+        (exists of organization name with link to date and city where it is organized) will be created.
+        The organization instance attributes will be set.
+        :param properties: New set of properties for the node. These properties are: name, location, datestamp and
+         org_type
+        :return: True if the organization has been updated, False if it existed already.
+        """
+        logging.debug("In Organization.Edit with properties {properties}".format(properties=properties))
+        self.org_id = "Continue From Here"
+        return True
+
     def set(self, org_id):
         """
         This method will get the organization associated with this ID. The assumption is that the org_id relates to a
@@ -421,6 +434,22 @@ class Organization:
         date_node = pu.node(date_id)
         datestamp = date_node["key"]
         return datestamp
+
+    def get_org_type(self):
+        """
+        This method will return the organization type. If not available, then Organization type is Wedstrijd (1).
+        :return: Organization Type. 1: Wedstrijd - 2: Deelname
+        """
+        org_type = {
+            "Wedstrijd": 1,
+            "Deelname": 2
+            }
+        org_type_name = 'Wedstrijd'
+        org_type_id = pu.get_end_node(self.org_id, "type")
+        if org_type_id:
+            org_type_node = pu.node(org_type_id)
+            org_type_name = org_type_node["name"]
+        return org_type[org_type_name]
 
 
 class Race:

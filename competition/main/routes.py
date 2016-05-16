@@ -183,21 +183,20 @@ def organization_edit(org_id):
     name = org.name
     location = org.get_location()
     datestamp = org.get_date()
-    form = OrganizationAdd()
-    if form.validate_on_submit():
-        name = form.name.data
-        location = form.location.data
-        datestamp = form.datestamp.data
-        org_type = form.org_type.data
-        current_app.logger.debug("Ready to add organization")
-        if mg.Organization().add(name, location, datestamp, org_type):
-            flash(name + ' toegevoegd als organizatie')
-        else:
-            flash(name + ' bestaat reeds, niet toegevoegd.')
-        # Form validated successfully, clear fields!
-        return redirect(url_for('main.organization_add'))
+    org_type = org.get_org_type()
+    if request.method == "POST":
+        form = OrganizationAdd()
+        if form.validate_on_submit():
+            org_dict = dict(name=form.name.data,
+                            location=form.location.data,
+                            datestamp=form.datestamp.data,
+                            org_type=form.org_type.data)
+            current_app.logger.debug("Ready to edit organization")
+            mg.Organization().edit(**org_dict)
+            return redirect(url_for('main.organization_list'))
     else:
         current_app.logger.debug("Not yet ready to add organization")
+        form = OrganizationAdd(org_type=org_type)
         # Form did not validate successfully, keep fields.
         organizations = mg.organization_list()
         form.name.data = name
