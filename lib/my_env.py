@@ -266,6 +266,7 @@ def get_name_from_indic(config, indic_id):
     """
     This method will calculate unique name for the dataset on Open Data platform. The name exists of the url_prefix
     that is defined in OpenData section in ini file and the indicator number.
+    :param config: Pointer to config object
     :param indic_id:
     :return: unique dataset name.
     """
@@ -284,3 +285,13 @@ def get_dataset_id(indic_id):
     """
     dataset_id = '_ind' + str(indic_id).zfill(3)
     return dataset_id
+
+
+def datestr2date(datestr):
+    """
+    This method will convert datestring to date type. Datestring must be of the form YYYY-MM-DD
+    :param datestr: Datestring to be converted
+    :return: Date in datetime object type, or False if not successful
+    """
+    date_obj = datetime.datetime.strptime(datestr, '%Y-%m-%d').date()
+    return date_obj

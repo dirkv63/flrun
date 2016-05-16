@@ -1,8 +1,9 @@
 import logging
 import sys
+import competition.p2n_wrapper as pu
+from lib import my_env
 from py2neo import Graph, Node, Relationship
 from py2neo.ext.calendar import GregorianCalendar
-import competition.p2n_wrapper as pu
 
 graph = Graph()
 calendar = GregorianCalendar(graph)
@@ -298,22 +299,23 @@ class Person:
 class Organization:
     """
     This class instantiates to an organization.
+    :return: Object
     """
     def __init__(self, org_id=None):
         self.name = 'NotYetDefined'
         self.org_id = -1
         self.org_node = None
         self.label = "NotYetDefined"
+        self.org = None
         if org_id:
             self.set(org_id)
 
-    def find(self, name, location, datestamp):
+    def find(self, **org_dict):
         """
         This method searches for the organization based on organization name, location and datestamp. If found,
         then organization attributes will be set using method set_organization. If not found, 'False' will be returned.
-        :param name: Name of the organization
-        :param location: City where the organization is
-        :param datestamp: Date of the organization
+        :param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
+         org_type
         :return: True if organization is found, False otherwise.
         """
         query = """
@@ -321,7 +323,8 @@ class Organization:
               (org)-[:In]->(loc:Location {city: {location}})
         RETURN id(org) as org_id
         """
-        org_id_arr = graph.cypher.execute(query, name=name, location=location, datestamp=datestamp)
+        org_id_arr = graph.cypher.execute(query, name=org_dict["name"], location=org_dict["location"],
+                                          datestamp=org_dict["datestamp"])
         if len(org_id_arr) == 0:
             # No organization found on this date for this location
             return False
@@ -334,38 +337,39 @@ class Organization:
             tot_len = len(org_id_arr)
             logging.error("Expected to find 0 or 1 organization, found {tot_len} (Organization: {name}, "
                           "Location: {loc}, Date: {date}"
-                          .format(tot_len=tot_len, name=name, loc=location, date=datestamp))
+                          .format(tot_len=tot_len, name=org_dict["name"], loc=org_dict["location"],
+                                  date=org_dict["datestamp"]))
             return False
 
-    def add(self, name, location, datestamp, org_type):
+    def add(self, **org_dict):
         """
         This method will check if the organization is registered already. If not, the organization graph object
         (exists of organization name with link to date and city where it is organized) will be created.
         The organization instance attributes will be set.
-        :param name: Name of the organization
-        :param location: City where the organization takes place
-        :param datestamp: Date of the organization.
-        :param org_type: Organization Type. 1: Wedstrijd - 2. Deelname
+        :param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
+         org_type
         :return: True if the organization has been registered, False if it existed already.
         """
-        logging.debug("Name: {name}, Location: {location}, Date: {datestamp}, Type: {org_type}"
-                      .format(name=name, location=location, datestamp=type(datestamp), org_type=org_type))
-        if self.find(name, location, datestamp):
+        logging.debug("Add Organization: {org_dict}".format(org_dict=org_dict))
+        org_type = org_dict["org_type"]
+        del org_dict["org_type"]
+        self.org = org_dict
+        if self.find(**org_dict):
             # No need to register (Organization exist already), and organization attributes are set.
             return False
         else:
-            # Organization on Location and datestamp does not yet exist, register it.
-            loc = Location(location).get_node()   # Get Location Node
-            # year, month, day = [int(x) for x in datestamp.split('-')]
-            date_node = calendar.date(datestamp.year, datestamp.month, datestamp.day).day   # Get Date (day) node
-            org = Node("Organization", name=name)
+            # Organization on Location and datestamp does not yet exist, register the node.
+            self.org_node = Node("Organization", name=self.org["name"])
+            # graph.create(self.org_node)  # Node will be created on first Relation creation.
+            # Organization node known, now I can link it with the Location.
+            self.set_location(self.org["location"])
+            # Set Date  for Organization
+            self.set_date(self.org["datestamp"])
+            # Set Organization Type
             org_type_node = get_org_type_node(org_type)
-            graph.create(org)
-            graph.create(Relationship(org, "On", date_node))
-            graph.create(Relationship(org, "In", loc))
-            graph.create(Relationship(org, "type", org_type_node))
-            # Set organization paarameters by finding the created organization
-            self.find(name, location, datestamp)
+            graph.create(Relationship(self.org_node, "type", org_type_node))
+            # Set organization parameters by finding the created organization
+            # self.find(name, location, datestamp)
             return True
 
     def edit(self, **properties):
@@ -378,7 +382,52 @@ class Organization:
         :return: True if the organization has been updated, False if it existed already.
         """
         logging.debug("In Organization.Edit with properties {properties}".format(properties=properties))
-        self.org_id = "Continue From Here"
+        # Check Organization Type
+        curr_org_type = self.get_org_type()
+        if not curr_org_type == properties["org_type"]:
+            pass
+            # Todo: Implement change in org_type, take into account the Relations on Races.
+            # self.set_org_type(new_org_type=properties["org_type"], curr_org_type=curr_org_type)
+        del properties["org_type"]
+        # Check if name, date or location are changed
+        changed_keys = [key for key in sorted(properties) if not (properties[key] == self.org[key])]
+        if len(changed_keys) > 0:
+            # Something is changed, so I need to end-up in unique combination of name, location, date
+            if self.find(**properties):
+                logging.error("Aangepaste Organisatie bestaat reeds: {props}".format(props=properties))
+                return False
+            else:
+                if 'name' in changed_keys:
+                    node_prop = dict(
+                        name=properties["name"]
+                    )
+                    pu.node_update(self.org_id, **node_prop)
+                    logging.debug("Name needs to be updated from {on} to {nn}"
+                                  .format(on=self.org["name"], nn=properties["name"]))
+                if 'location' in changed_keys:
+                    logging.debug("Location needs to be updated from {ol} to {nl}"
+                                  .format(ol=self.org["location"], nl=properties["location"]))
+                    # Remember current location - before fiddling around with relations!
+                    curr_loc = Location(self.org["location"]).get_node()
+                    curr_loc_id = pu.node_id(curr_loc)
+                    # First create link to new location
+                    self.set_location(properties["location"])
+                    # Then remove link to current location
+                    pu.remove_relation(self.org_id, curr_loc_id, "In")
+                    # Finally check if current location is still required. Remove if there are no more links.
+                    pu.remove_node(curr_loc_id)
+                if 'datestamp' in changed_keys:
+                    logging.debug("Date needs to be updated from {od} to {nd}"
+                                  .format(od=type(self.org["datestamp"]), nd=type(properties["datestamp"])))
+                    # Get Node for current day
+                    curr_ds = self.org["datestamp"]
+                    curr_date_node = calendar.date(curr_ds.year, curr_ds.month, curr_ds.day).day
+                    # First create link to new date
+                    self.set_date(properties["datestamp"])
+                    # Then remove link from current date
+                    pu.remove_relation(self.org_id, pu.node_id(curr_date_node), "On")
+                    # Finally check if date (day, month, year) can be removed.
+                    pu.remove_date(curr_ds)
         return True
 
     def set(self, org_id):
@@ -402,6 +451,11 @@ class Organization:
                                                           city=this_org.city,
                                                           date=this_org.date)
         logging.debug("Label: {label}".format(label=self.label))
+        self.org = dict(
+            name=this_org.org,
+            location=this_org.city,
+            datestamp=my_env.datestr2date(this_org.date)
+        )
         self.name = this_org.org
         self.org_id = org_id
         self.org_node = this_org.org_node
@@ -418,7 +472,7 @@ class Organization:
     def get_location(self):
         """
         This method will return the location for the Organization.
-        :return: Organization, or False if no organization found.
+        :return: Location name (city name), or False if no location found.
         """
         loc_id = pu.get_end_node(self.org_id, "In")
         loc_node = pu.node(loc_id)
@@ -450,6 +504,28 @@ class Organization:
             org_type_node = pu.node(org_type_id)
             org_type_name = org_type_node["name"]
         return org_type[org_type_name]
+
+    def set_location(self, loc=None):
+        """
+        This method will create a relation between the organization and the location. Relation type is 'In'.
+        Organization Node must be available for this method.
+        :param loc: Name of the city.
+        :return:
+        """
+        loc_node = Location(loc).get_node()   # Get Location Node
+        pu.create_relation(start_node=self.org_node, end_node=loc_node, rel_type="In")
+        return
+
+    def set_date(self, ds=None):
+        """
+        This method will create a relation between the organization and the date. Relation type is 'On'.
+        Organization Node must be available for this method.
+        :param ds: Datestamp
+        :return:
+        """
+        date_node = calendar.date(ds.year, ds.month, ds.day).day   # Get Date (day) node
+        graph.create(Relationship(self.org_node, "On", date_node))
+        return
 
 
 class Race:
