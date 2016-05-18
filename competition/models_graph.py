@@ -543,16 +543,21 @@ class Organization:
         org_type_wedstrijd_id = pu.node_id(org_type_wedstrijd)
         org_type_deelname = graph.merge_one("OrgType", "name", "Deelname")
         org_type_deelname_id = pu.node_id(org_type_deelname)
+        race_type_wedstrijd = graph.merge_one(("RaceType", "name", "Bijwedstrijd"))
+        # race_type_wedstrijd_id = pu.node_id(race_type_wedstrijd)
+        race_type_deelname = graph.merge_one("RaceType", "name", "Deelname")
+        # race_type_deelname_id = pu.node_id(race_type_deelname)
         # Set new_org_type for Organization
         if new_org_type == 1:
             org_type_node = org_type_wedstrijd
+            race_type_node = race_type_wedstrijd
         elif new_org_type == 2:
             org_type_node = org_type_deelname
+            race_type_node = race_type_deelname
         else:
             logging.error("Unrecognized New Organization Type: {org_type}".format(org_type=new_org_type))
             return False
         pu.create_relation(start_node=self.org_node, end_node=org_type_node, rel_type="type")
-        # Set new_org_type for all races in Organization
         # Remove curr_org_type for Organization
         if curr_org_type:
             if curr_org_type == 1:
@@ -563,8 +568,12 @@ class Organization:
                 logging.error("Unrecognized Current Organization Type: {org_type}".format(org_type=curr_org_type))
                 return False
             pu.remove_relation(start_nid=self.org_id, end_nid=org_type_node_id, rel_type="type")
-        # Remove curr_org_type for all races in Organization
-        # Done
+        # Set new_org_type for all races in Organization
+        # Get all races for this organization
+        races = pu.get_end_nodes(self.org_id, "has")
+        # Set all race types.
+        for race_id in races:
+            set_race_type(race_id, race_type_node)
         return
 
 
@@ -625,11 +634,11 @@ class Race:
         else:
             # Race for Organization does not yet exist, register it.
             race = Node("Race", name=name)
-            racetype_node = graph.node(racetype)
+            racetype_node = graph.merge_one("RaceType", "name", racetype)
             org_node = graph.node(self.org_id)
             graph.create(race)
             graph.create(Relationship(org_node, "has", race))
-            graph.create(Relationship(race, "type", racetype_node))
+            set_race_type(race_id=pu.node_id(race), race_type_node=racetype_node)
             # Set organization paarameters by finding the created organization
             # self.find(name, location, datestamp)
             return True
@@ -987,3 +996,20 @@ def racetype_list():
     query = "match (n:RaceType) return id(n) as id, n.name as name"
     race_types = graph.cypher.execute(query)
     return race_types
+
+
+def set_race_type(race_id=None, race_type_node=None):
+    """
+    Check if old node type is defined. If so, remove the link.
+    Then add new link.
+    :param race_id: Node ID for the race
+    :param race_type_node:
+    :return:
+    """
+    race_node = pu.node(race_id)
+    # Check if there is a link now.
+    curr_race_type_id = pu.get_end_node(race_id, "type")
+    if curr_race_type_id:
+        pu.remove_relation(race_id, curr_race_type_id, "type")
+    pu.create_relation(start_node=race_node, end_node=race_type_node, rel_type="type")
+    return
