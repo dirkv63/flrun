@@ -33,6 +33,7 @@ def node_id(node_obj):
     """
     if type(node_obj) is Node:
         nid = node_obj.ref[5:]
+        logging.debug("Node: {node}, ID: {id}".format(node=node_obj, id=nid))
         return int(nid)
     else:
         logging.error("Node expected, but got {nodetype}".format(nodetype=type(node_obj)))

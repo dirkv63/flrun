@@ -8,6 +8,7 @@ from py2neo.ext.calendar import GregorianCalendar
 graph = Graph()
 calendar = GregorianCalendar(graph)
 # watch("py2neo.cypher")
+# Set Node IDs, to improve performance.
 
 
 class Participant:
@@ -385,9 +386,7 @@ class Organization:
         # Check Organization Type
         curr_org_type = self.get_org_type()
         if not curr_org_type == properties["org_type"]:
-            pass
-            # Todo: Implement change in org_type, take into account the Relations on Races.
-            # self.set_org_type(new_org_type=properties["org_type"], curr_org_type=curr_org_type)
+            self.set_org_type(new_org_type=properties["org_type"], curr_org_type=curr_org_type)
         del properties["org_type"]
         # Check if name, date or location are changed
         changed_keys = [key for key in sorted(properties) if not (properties[key] == self.org[key])]
@@ -491,7 +490,8 @@ class Organization:
 
     def get_org_type(self):
         """
-        This method will return the organization type. If not available, then Organization type is Wedstrijd (1).
+        This method will return the organization type as a Number. If not available, then Organization type is
+        Wedstrijd (1).
         :return: Organization Type. 1: Wedstrijd - 2: Deelname
         """
         org_type = {
@@ -525,6 +525,46 @@ class Organization:
         """
         date_node = calendar.date(ds.year, ds.month, ds.day).day   # Get Date (day) node
         graph.create(Relationship(self.org_node, "On", date_node))
+        return
+
+    def set_org_type(self, new_org_type, curr_org_type=None):
+        """
+        This method will set or update the Organization Type. In case of update Organization Type, then the current link
+        needs to be removed, and links between Races need to be updated. In case new organization type is 'Deelname',
+        then all races will be updated to 'Deelname'. In case new organization type is 'Wedstrijd', then all races will
+        be updated to 'Bijwedstrijd' since it is not possible to guess the 'Hoofdwedstrijd'. The user needs to remember
+        to update the 'Hoofdwedstrijd'. (Maybe send a pop-up message to the user?
+        :param new_org_type:
+        :param curr_org_type:
+        :return:
+        """
+        # First get node and node_id for Organization Type Wedstrijd and Organization Type Deelname
+        org_type_wedstrijd = graph.merge_one("OrgType", "name", "Wedstrijd")
+        org_type_wedstrijd_id = pu.node_id(org_type_wedstrijd)
+        org_type_deelname = graph.merge_one("OrgType", "name", "Deelname")
+        org_type_deelname_id = pu.node_id(org_type_deelname)
+        # Set new_org_type for Organization
+        if new_org_type == 1:
+            org_type_node = org_type_wedstrijd
+        elif new_org_type == 2:
+            org_type_node = org_type_deelname
+        else:
+            logging.error("Unrecognized New Organization Type: {org_type}".format(org_type=new_org_type))
+            return False
+        pu.create_relation(start_node=self.org_node, end_node=org_type_node, rel_type="type")
+        # Set new_org_type for all races in Organization
+        # Remove curr_org_type for Organization
+        if curr_org_type:
+            if curr_org_type == 1:
+                org_type_node_id = org_type_wedstrijd_id
+            elif curr_org_type == 2:
+                org_type_node_id = org_type_deelname_id
+            else:
+                logging.error("Unrecognized Current Organization Type: {org_type}".format(org_type=curr_org_type))
+                return False
+            pu.remove_relation(start_nid=self.org_id, end_nid=org_type_node_id, rel_type="type")
+        # Remove curr_org_type for all races in Organization
+        # Done
         return
 
 
@@ -935,7 +975,6 @@ def init_graph(config):
     org_deelname['beschrijving'] = config['OrgType']['deelname']
     wedstrijd.push()
     org_deelname.push()
-
     return
 
 
