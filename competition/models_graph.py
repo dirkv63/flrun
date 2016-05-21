@@ -505,6 +505,25 @@ class Organization:
             org_type_name = org_type_node["name"]
         return org_type[org_type_name]
 
+    def has_wedstrijd_type(self, racetype="NotFound"):
+        """
+        This method will check the number of races of type racetype. It can be used to check if there is a
+        'Hoofdwedstrijd' assigned with the Organization.
+        :param racetype: Race Type (Hoofdwedstrijd, Bijwedstrijd, Deelname)
+        :return: Number of races for this type, False if there are no races.
+        """
+        qm = "MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(rt:RaceType {name: {racetype}})"
+        qw = "WHERE id(org)={org_id} ".format(org_id=self.org_id)
+        qr = "RETURN org, race, rt"
+        query = "{qm} {qw} {qr}".format(qm=qm, qw=qw, qr=qr)
+        logging.debug("Look, my query: {query}".format(query=query))
+        res = graph.cypher.execute(query, racetype=racetype)
+        if len(res):
+            logging.debug("Organization has {len} races for type {racetype}".format(len=len(res), racetype=racetype))
+            return len(res)
+        else:
+            return False
+
     def set_location(self, loc=None):
         """
         This method will create a relation between the organization and the location. Relation type is 'In'.
@@ -533,17 +552,19 @@ class Organization:
         needs to be removed, and links between Races need to be updated. In case new organization type is 'Deelname',
         then all races will be updated to 'Deelname'. In case new organization type is 'Wedstrijd', then all races will
         be updated to 'Bijwedstrijd' since it is not possible to guess the 'Hoofdwedstrijd'. The user needs to remember
-        to update the 'Hoofdwedstrijd'. (Maybe send a pop-up message to the user?
+        to update the 'Hoofdwedstrijd'. (Maybe send a pop-up message to the user?)
         :param new_org_type:
         :param curr_org_type:
         :return:
         """
+        logging.debug("In set_org_type, change from current {cot} to new {newot}"
+                      .format(cot=curr_org_type, newot=new_org_type))
         # First get node and node_id for Organization Type Wedstrijd and Organization Type Deelname
         org_type_wedstrijd = graph.merge_one("OrgType", "name", "Wedstrijd")
         org_type_wedstrijd_id = pu.node_id(org_type_wedstrijd)
         org_type_deelname = graph.merge_one("OrgType", "name", "Deelname")
         org_type_deelname_id = pu.node_id(org_type_deelname)
-        race_type_wedstrijd = graph.merge_one(("RaceType", "name", "Bijwedstrijd"))
+        race_type_wedstrijd = graph.merge_one("RaceType", "name", "Bijwedstrijd")
         # race_type_wedstrijd_id = pu.node_id(race_type_wedstrijd)
         race_type_deelname = graph.merge_one("RaceType", "name", "Deelname")
         # race_type_deelname_id = pu.node_id(race_type_deelname)
@@ -593,15 +614,15 @@ class Race:
             logging.debug("Trying to set Race Object for ID {race_id}".format(race_id=race_id))
             self.node_set(nid=race_id)
 
-    def find(self, racetype):
+    def find(self, racetype_id):
         """
         This method searches for the organization based on organization name, location and datestamp. If found,
         then organization attributes will be set using method set_organization. If not found, 'False' will be returned.
-        :param racetype: Type of the Race
+        :param racetype_id: Type of the Race
         :return: True if the race is found for this organization, False otherwise.
         """
         match = "MATCH (org:Organization)-->(race:Race {name: {name}})-->(racetype:RaceType) "
-        where = "WHERE id(org)={org_id} AND id(racetype)={racetype} ".format(org_id=self.org_id, racetype=racetype)
+        where = "WHERE id(org)={org_id} AND id(racetype)={racetype} ".format(org_id=self.org_id, racetype=racetype_id)
         ret = "RETURN id(race) as race"
         query = match + where + ret
         logging.debug("Query: {query}".format(query=query))
@@ -617,24 +638,33 @@ class Race:
             # Todo - Error handling is required to handle more than one array returned.
             sys.exit()
 
-    def add(self, name, racetype):
+    def add(self, name, racetype=None):
         """
         This method will check if the race is registered for this organization. If not, the race graph object
         (exists of race name with link to race type and the organization) will be created.
         :param name: Name of the race
-        :param racetype: Type of the race
+        :param racetype: 1 > Hoofdwedstrijd. If False: then calculate (bijwedstrijd or Deelname).
         :return: True if the race has been registered, False if it existed already.
         """
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
         logging.debug("Name: {name}".format(name=name))
         self.name = name
-        if self.find(racetype):
+        org_type = get_org_type(self.org_id)
+        if racetype:
+            # RaceType defined, so it must be Hoofdwedstrijd.
+            racetype = "Hoofdwedstrijd"
+        elif org_type == "Wedstrijd":
+            racetype = "Bijwedstrijd"
+        else:
+            racetype = "Deelname"
+        racetype_node = graph.merge_one("RaceType", "name", racetype)
+        racetype_id = pu.node_id(racetype_node)
+        if self.find(racetype_id):
             # No need to register (Race exist already).
             return False
         else:
             # Race for Organization does not yet exist, register it.
             race = Node("Race", name=name)
-            racetype_node = graph.merge_one("RaceType", "name", racetype)
             org_node = graph.node(self.org_id)
             graph.create(race)
             graph.create(Relationship(org_node, "has", race))
@@ -732,10 +762,25 @@ def get_org_id(race_id):
     return org_id
 
 
-def get_org_type_node(org_id):
+def get_org_type(org_id):
+    """
+    This method will get the organization Type for this organization. Type can be 'Wedstrijd' or 'Deelname'.
+    :param org_id: Node ID of the Organization.
+    :return: Type of the Organization: Wedstrijd or Deelname
+    """
+    query = """
+        MATCH (org:Organization)-[:type]->(ot:OrgType)
+        WHERE id(org)={org_id}
+        RETURN ot.name as name
+    """.format(org_id=org_id)
+    res = graph.cypher.execute(query)
+    return res[0][0]
+
+
+def get_org_type_node(org_type_id):
     """
     This method will find the Organization Type Node.
-    :param org_id: RadioButton selected for Organization Type.
+    :param org_type_id: RadioButton selected for Organization Type.
     :return: Organization Type Node
     """
     if org_id == 1:

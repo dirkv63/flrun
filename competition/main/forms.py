@@ -22,7 +22,8 @@ class OrganizationAdd(Form):
 
 class RaceAdd(Form):
     name = StringField('Naam', validators=[wtv.InputRequired(), wtv.Length(1, 12)])
-    raceType = SelectField('Type Wedstrijd', coerce=int)
+    # raceType = SelectField('Type Wedstrijd', coerce=int)
+    raceType = BooleanField('Hoofdwedstrijd')
     submit = SubmitField('OK')
 
 

@@ -231,10 +231,15 @@ def race_list(org_id):
 def race_add(org_id):
     name = None
     form = RaceAdd()
-    form.raceType.choices = mg.racetype_list()
+    org = mg.Organization(org_id=org_id)
+    if org.has_wedstrijd_type(racetype="Hoofdwedstrijd"):
+        del form.raceType
     if form.validate_on_submit():
         name = form.name.data
-        racetype = form.raceType.data
+        if form.raceType:
+            racetype = form.raceType.data
+        else:
+            racetype = False
         if mg.Race(org_id).add(name, racetype):
             flash(name + ' created as a Race in Organization')
         else:
