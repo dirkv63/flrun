@@ -10,16 +10,26 @@
         <table class="table table-hover">
             <tr>
                 <th>Wedstrijden</th>
-<!--
                 <th>Type</th>
-                -->
             </tr>
             {% for row in races %}
             <tr>
-                <!--
-                <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race }}</a></td>
-                -->
                 <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race}}</a></td>
+                <td>
+                    {% if row.type is equalto "Hoofdwedstrijd" %}
+                        <a href="{{ url_for('main.hoofdwedstrijd_remove', race_id=row.race_id, org_id=org_id) }}">
+                    {% endif %}
+                    {% if set_hoofdwedstrijd is equalto "Yes" %}
+                        <a href="{{ url_for('main.hoofdwedstrijd_set', race_id=row.race_id, org_id=org_id) }}">
+                    {% endif %}
+                        {{ row.type }}
+                    {% if row.type is equalto "Hoofdwedstrijd" %}
+                        </a>
+                    {% endif %}
+                    {% if set_hoofdwedstrijd is equalto "Yes" %}
+                        </a>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </table>

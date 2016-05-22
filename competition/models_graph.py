@@ -439,17 +439,19 @@ class Organization:
         """
         logging.debug("Org ID: {org_id}".format(org_id=org_id))
         query = """
-            MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
+            MATCH (date:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
             WHERE id(org) = {org_id}
-            RETURN day.key as date, org.name as org, loc.city as city, org as org_node
+            RETURN date.day as day, date.month as month, date.year as year, date.key as date,
+                   org.name as org, loc.city as city, org as org_node
         """.format(org_id=org_id)
         org_array = graph.cypher.execute(query)
         this_org = org_array[0]
         # Todo - expecting one and exactly one row back. Handle errors?
-        self.label = "{org_name} ({city}, {date})".format(org_name=this_org.org,
-                                                          city=this_org.city,
-                                                          date=this_org.date)
-        logging.debug("Label: {label}".format(label=self.label))
+        self.label = "{org_name} ({city}, {day:02d}-{month:02d}-{year})".format(org_name=this_org.org,
+                                                                                city=this_org.city,
+                                                                                day=this_org.day,
+                                                                                month=this_org.month,
+                                                                                year=this_org.year)
         self.org = dict(
             name=this_org.org,
             location=this_org.city,
@@ -521,6 +523,17 @@ class Organization:
         if len(res):
             logging.debug("Organization has {len} races for type {racetype}".format(len=len(res), racetype=racetype))
             return len(res)
+        else:
+            return False
+
+    def ask_for_hoofdwedstrijd(self):
+        """
+        This method will check if adding a race needs an option to select a 'Hoofdwedstrijd'. This is required if
+        Organization Type is 'Wedstrijd' (1) and no hoofdwedstrijd has been selected.
+        :return: True - if Hoofdwedstrijd option for race is required, False otherwise.
+        """
+        if self.get_org_type() == 1 and not self.has_wedstrijd_type("Hoofdwedstrijd"):
+            return True
         else:
             return False
 
@@ -657,7 +670,7 @@ class Race:
             racetype = "Bijwedstrijd"
         else:
             racetype = "Deelname"
-        racetype_node = graph.merge_one("RaceType", "name", racetype)
+        racetype_node = get_race_type_node(racetype)
         racetype_id = pu.node_id(racetype_node)
         if self.find(racetype_id):
             # No need to register (Race exist already).
@@ -745,8 +758,9 @@ class Location:
 
 def organization_list():
     query = """
-    MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
-    RETURN day.key as date, org.name as organization, loc.city as city, id(org) as id
+    MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location),
+          (org)-[:type]->(ot:OrgType)
+    RETURN day.key as date, org.name as organization, loc.city as city, id(org) as id, ot.name as type
     ORDER BY day.key ASC
     """
     return graph.cypher.execute(query)
@@ -790,6 +804,21 @@ def get_org_type_node(org_type_id):
     query = "MATCH (n:OrgType {name: {name}}) return n"
     res = graph.cypher.execute(query, name=name)
     return res[0][0]
+
+
+def get_race_type_node(racetype):
+    """
+    This method will return the racetype node associated with this racetype.
+    :param racetype: Racetype specifier (Hoofdwedstrijd, Bijwedstrijd, Deelname)
+    :return: Racetype Node, or False if it could not be found.
+    """
+    if racetype in ["Hoofdwedstrijd", "Bijwedstrijd", "Deelname"]:
+        # RaceType defined, so it must be Hoofdwedstrijd.
+        racetype_node = graph.merge_one("RaceType", "name", racetype)
+        return racetype_node
+    else:
+        logging.error("RaceType unknown: {racetype}.".format(racetype=racetype))
+        return False
 
 
 def get_races_for_org(org_id):

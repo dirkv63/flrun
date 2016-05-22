@@ -220,7 +220,12 @@ def race_list(org_id):
     org.set(org_id)
     org_label = org.get_label()
     races = mg.race_list(org_id)
-    return render_template('/organization_races.html', org_label=org_label, org_id=org_id, races=races)
+    if org.ask_for_hoofdwedstrijd():
+        set_hoofdwedstrijd = "Yes"
+    else:
+        set_hoofdwedstrijd = "No"
+    return render_template('/organization_races.html', org_label=org_label, org_id=org_id, races=races,
+                           set_hoofdwedstrijd=set_hoofdwedstrijd)
 
 
 @main.route('/race/<org_id>/add', methods=['GET', 'POST'])
@@ -229,7 +234,8 @@ def race_add(org_id):
     name = None
     form = RaceAdd()
     org = mg.Organization(org_id=org_id)
-    if org.has_wedstrijd_type(racetype="Hoofdwedstrijd"):
+    org_label = org.get_label()
+    if not org.ask_for_hoofdwedstrijd():
         del form.raceType
     if form.validate_on_submit():
         name = form.name.data
@@ -242,10 +248,10 @@ def race_add(org_id):
         else:
             flash(name + ' does exist already, not created.')
         # Form validated successfully, clear fields!
-        return redirect(url_for('main.race_add', org_id=org_id))
+        return redirect(url_for('main.race_list', org_id=org_id))
     else:
         # Form did not validate successfully, keep fields.
-        return render_template('race_add.html', form=form, name=name, org_id=org_id)
+        return render_template('race_add.html', form=form, name=name, org_id=org_id, org_label=org_label)
 
 
 @main.route('/participant/<race_id>/add', methods=['GET', 'POST'])
@@ -306,6 +312,32 @@ def participant_remove(race_id, pers_id):
             part = mg.Participant(race_id=race_id, pers_id=pers_id)
             part.remove()
     return redirect(url_for('main.participant_add', race_id=race_id))
+
+
+@main.route('/hoofdwedstrijd/remove/<org_id>/<race_id>', methods=['GET', 'POST'])
+@login_required
+def hoofdwedstrijd_remove(org_id, race_id):
+    """
+    This method will change 'Hoofdwedstrijd' to 'Bijwedstrijd'.
+    :param race_id: Node ID of the race.
+    :return: True if racetype has been reset from 'Hoofdwedstrijd' to 'Bijwedstrijd'.
+    """
+    bij_node = mg.get_race_type_node("Bijwedstrijd")
+    mg.set_race_type(race_id=race_id, race_type_node=bij_node)
+    return redirect(url_for('main.race_list', org_id=org_id))
+
+
+@main.route('/hoofdwedstrijd/set/<org_id>/<race_id>', methods=['GET', 'POST'])
+@login_required
+def hoofdwedstrijd_set(org_id, race_id):
+    """
+    This method will change 'Hoofdwedstrijd' to 'Bijwedstrijd'.
+    :param race_id: Node ID of the race.
+    :return: True if racetype has been reset from 'Hoofdwedstrijd' to 'Bijwedstrijd'.
+    """
+    hoofd_node = mg.get_race_type_node("Hoofdwedstrijd")
+    mg.set_race_type(race_id=race_id, race_type_node=hoofd_node)
+    return redirect(url_for('main.race_list', org_id=org_id))
 
 
 @main.errorhandler(404)

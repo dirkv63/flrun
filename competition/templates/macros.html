@@ -5,12 +5,14 @@
                 <th>Datum</th>
                 <th>Plaats</th>
                 <th>Naam</th>
+                <th>Type</th>
             </tr>
             {% for row in organizations %}
                 <tr>
                     <td>{{ row.date }}</td>
                     <td>{{ row.city }}</td>
                     <td><a href="{{ url_for('main.race_list', org_id=row.id) }}">{{ row.organization }}</a></td>
+                    <td>{{ row.type }}</td>
                 </tr>
             {% endfor %}
         </table>
