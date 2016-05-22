@@ -783,7 +783,7 @@ def get_org_type_node(org_type_id):
     :param org_type_id: RadioButton selected for Organization Type.
     :return: Organization Type Node
     """
-    if org_id == 1:
+    if org_type_id == 1:
         name = "Wedstrijd"
     else:
         name = "Deelname"

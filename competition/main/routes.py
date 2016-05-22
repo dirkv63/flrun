@@ -145,30 +145,54 @@ def organization_list():
 
 @main.route('/organization/add', methods=['GET', 'POST'])
 @login_required
-def organization_add():
+def organization_add(org_id=None):
     current_app.logger.debug("Evaluate Organization/add")
-    name = None
-    location = None
-    datestamp = None
-    form = OrganizationAdd()
-    if form.validate_on_submit():
-        org_dict = dict(name=form.name.data,
-                        location=form.location.data,
-                        datestamp=form.datestamp.data,
-                        org_type=form.org_type.data)
-        current_app.logger.debug("Ready to add organization")
-        if mg.Organization().add(**org_dict):
-            flash(org_dict["name"] + ' toegevoegd als organizatie')
-        else:
-            flash(org_dict["name"] + ' bestaat reeds, niet toegevoegd.')
-        # Form validated successfully, clear fields!
-        return redirect(url_for('main.organization_add'))
+    if request.method == "POST":
+        form = OrganizationAdd()
+        if form.validate_on_submit():
+            org_dict = dict(name=form.name.data,
+                            location=form.location.data,
+                            datestamp=form.datestamp.data,
+                            org_type=form.org_type.data)
+            if org_id:
+                current_app.logger.debug("Ready to edit organization")
+                org = mg.Organization(org_id=org_id)
+                if org.edit(**org_dict):
+                    flash(org_dict["name"] + ' aangepast.')
+                else:
+                    flash(org_dict["name"] + ' bestaat reeds, niet aangepast.')
+            else:
+                current_app.logger.debug("Ready to add organization")
+                if mg.Organization().add(**org_dict):
+                    flash(org_dict["name"] + ' toegevoegd als organizatie')
+                else:
+                    flash(org_dict["name"] + ' bestaat reeds, niet toegevoegd.')
+            # Form validated successfully, clear fields!
+            return redirect(url_for('main.organization_list'))
+    # Request Method is GET or Form did not validate
+    # Note that in case Form did not validate, the fields will be reset.
+    # But how can we fail on form_validate?
+    organizations = mg.organization_list()
+    if org_id:
+        current_app.logger.debug("Get Form to edit organization")
+        org = mg.Organization(org_id=org_id)
+        name = org.name
+        location = org.get_location()
+        datestamp = org.get_date()
+        org_type = org.get_org_type()
+        form = OrganizationAdd(org_type=org_type)
+        form.name.data = name
+        form.location.data = location
+        form.datestamp.data = my_env.datestr2date(datestamp)
     else:
-        current_app.logger.debug("Not yet ready to add organization")
-        # Form did not validate successfully, keep fields.
-        organizations = mg.organization_list()
-        return render_template('organization_add.html', form=form, name=name, location=location,
-                               datestamp=datestamp, organizations=organizations)
+        current_app.logger.debug("Get Form to add organization")
+        name = None
+        location = None
+        datestamp = None
+        form = OrganizationAdd()
+    # Form did not validate successfully, keep fields.
+    return render_template('organization_add.html', form=form, name=name, location=location,
+                           datestamp=datestamp, organizations=organizations)
 
 
 @main.route('/organization/edit/<org_id>', methods=['GET', 'POST'])
@@ -180,34 +204,7 @@ def organization_edit(org_id):
     :return:
     """
     current_app.logger.debug("Evaluate Organization/edit")
-    org = mg.Organization(org_id=org_id)
-    name = org.name
-    location = org.get_location()
-    datestamp = org.get_date()
-    org_type = org.get_org_type()
-    if request.method == "POST":
-        form = OrganizationAdd()
-        if form.validate_on_submit():
-            org_dict = dict(name=form.name.data,
-                            location=form.location.data,
-                            datestamp=form.datestamp.data,
-                            org_type=form.org_type.data)
-            current_app.logger.debug("Ready to edit organization")
-            if org.edit(**org_dict):
-                flash(org_dict["name"] + ' aangepast.')
-            else:
-                flash(org_dict["name"] + ' bestaat reeds, niet aangepast.')
-            return redirect(url_for('main.organization_list'))
-    else:
-        current_app.logger.debug("Not yet ready to add organization")
-        form = OrganizationAdd(org_type=org_type)
-        # Form did not validate successfully, keep fields.
-        organizations = mg.organization_list()
-        form.name.data = name
-        form.location.data = location
-        form.datestamp.data = my_env.datestr2date(datestamp)
-        return render_template('organization_add.html', form=form, name=name, location=location,
-                               datestamp=datestamp, organizations=organizations)
+    return organization_add(org_id=org_id)
 
 
 @main.route('/race/<org_id>/list')
