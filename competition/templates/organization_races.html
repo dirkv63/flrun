@@ -4,6 +4,12 @@
 <ul>
 <li><a href="{{ url_for('main.race_add', org_id=org_id) }}">Wedstrijd toevoegen</a></li>
 <li><a href="{{ url_for('main.organization_edit', org_id=org_id) }}">Organizatie aanpassen</a></li>
+{% if remove_org is equalto "Yes" %}
+    <li>The Organization can be removed</li>
+{% else %}
+    <li>Organizatie verwijderen is enkel mogelijk als er geen wedstrijden bij de organizatie horen.</li>
+{% endif %}
+    <li><a href="{{ url_for('main.organization_delete', org_id=org_id) }}">Organizatie verwijderen</a></li>
 </ul>
 <div class="row">
     <div class="col-md-6">

@@ -207,6 +207,27 @@ def organization_edit(org_id):
     return organization_add(org_id=org_id)
 
 
+@main.route('/organization/delete/<org_id>', methods=['GET', 'POST'])
+@login_required
+def organization_delete(org_id):
+    """
+    This method will delete an existing organization. This can be done only if there are no races attached to the
+    organization.
+    :param org_id: The Node ID of the organization.
+    :return: True if the orgnaization is removed, False otherwise.
+    """
+    # Todo: Check on Organization Date, does this needs to be removed?
+    # Tode: Check on Organization Location, does this needs to be removed?
+    current_app.logger.debug("Delete organization {org_id}".format(org_id=org_id))
+    if pu.get_end_nodes(start_node_id=org_id, rel_type="has"):
+        flash("Organization cannot be removed, races are attached.")
+        return url_for('main.race_add(org_id)', org_id=org_id)
+    else:
+        pu.remove_node_force(org_id)
+        flash("Organizatie verwijderd.")
+        return redirect(url_for('main.organization_list'))
+
+
 @main.route('/race/<org_id>/list')
 def race_list(org_id):
     """
@@ -224,8 +245,12 @@ def race_list(org_id):
         set_hoofdwedstrijd = "Yes"
     else:
         set_hoofdwedstrijd = "No"
+    if len(races):
+        remove_org = "No"
+    else:
+        remove_org = "Yes"
     return render_template('/organization_races.html', org_label=org_label, org_id=org_id, races=races,
-                           set_hoofdwedstrijd=set_hoofdwedstrijd)
+                           set_hoofdwedstrijd=set_hoofdwedstrijd, remove_org=remove_org)
 
 
 @main.route('/race/<org_id>/add', methods=['GET', 'POST'])
@@ -319,6 +344,7 @@ def participant_remove(race_id, pers_id):
 def hoofdwedstrijd_remove(org_id, race_id):
     """
     This method will change 'Hoofdwedstrijd' to 'Bijwedstrijd'.
+    :param org_id: Node ID of the organization
     :param race_id: Node ID of the race.
     :return: True if racetype has been reset from 'Hoofdwedstrijd' to 'Bijwedstrijd'.
     """
@@ -332,6 +358,7 @@ def hoofdwedstrijd_remove(org_id, race_id):
 def hoofdwedstrijd_set(org_id, race_id):
     """
     This method will change 'Hoofdwedstrijd' to 'Bijwedstrijd'.
+    :param org_id: Node ID of the organization
     :param race_id: Node ID of the race.
     :return: True if racetype has been reset from 'Hoofdwedstrijd' to 'Bijwedstrijd'.
     """

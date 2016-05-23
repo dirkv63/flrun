@@ -10,6 +10,40 @@ graph = Graph()
 calendar = GregorianCalendar(graph)
 
 
+def clear_date_node(label):
+    """
+    This method will clear the date node as specified by label. Label can be Day, Month or Year.
+    :param label: Day, Month or Year
+    :return:
+    """
+    query = """
+        MATCH (n:«label»)-[rel]-()
+        WITH n, count(rel) as rel_cnt
+        WHERE rel_cnt=1
+        RETURN id(n) as nid, n.key as key
+    """
+    reclist = graph.cypher.execute(query,label=label)
+    for rec in reclist:
+        logging.info("Deleting date node {date}".format(date=rec.key))
+        remove_node_force(rec.nid)
+    return
+
+
+def clear_date():
+    """
+    This method will clear dates that are no longer connected to an organization, a person's birthday or any other
+    item.
+    First find days with one relation only, this must be a connection to the month. Remove these days.
+    Then find months with one relation only, this must be a connection to the year. Remove these months.
+    Finally find years with one relation only, this must be a connection to the Gregorian calendar. Remove these years.
+    :return:
+    """
+    # First Remove Days
+    clear_date_node("Day")
+    clear_date_node("Month")
+    clear_date_node("Year")
+
+
 def node(nid):
     """
     This method will get a node ID and return a node, or false in case no Node can be associated with the ID.
