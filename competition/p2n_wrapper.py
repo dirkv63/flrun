@@ -22,26 +22,11 @@ def clear_date_node(label):
         WHERE rel_cnt=1
         RETURN id(n) as nid, n.key as key
     """
-    reclist = graph.cypher.execute(query,label=label)
+    reclist = graph.cypher.execute(query, label=label)
     for rec in reclist:
         logging.info("Deleting date node {date}".format(date=rec.key))
         remove_node_force(rec.nid)
     return
-
-
-def clear_date():
-    """
-    This method will clear dates that are no longer connected to an organization, a person's birthday or any other
-    item.
-    First find days with one relation only, this must be a connection to the month. Remove these days.
-    Then find months with one relation only, this must be a connection to the year. Remove these months.
-    Finally find years with one relation only, this must be a connection to the Gregorian calendar. Remove these years.
-    :return:
-    """
-    # First Remove Days
-    clear_date_node("Day")
-    clear_date_node("Month")
-    clear_date_node("Year")
 
 
 def node(nid):
@@ -252,12 +237,47 @@ def relations(nid):
     return False
 
 
+def clear_locations():
+    """
+    This method will check if there are orphan locations. These are locations without relations. These locations can be
+    removed.
+    :return:
+    """
+    # Note that you could DETACH DELETE location nodes here, but then you miss the opportunity to log what is removed.
+    query = """
+        MATCH (loc:Location) WHERE NOT (loc)--() RETURN id(loc) as loc_id, loc.city as city
+    """
+    res = graph.cypher.execute(query)
+    for locs in res:
+        logging.info("Remove location {city} with ID {loc_id}".format(city=locs.city, loc_id=locs.loc_id))
+        remove_node(locs.loc_id)
+    return
+
+
+def clear_date():
+    """
+    This method will clear dates that are no longer connected to an organization, a person's birthday or any other
+    item.
+    First find days with one relation only, this must be a connection to the month. Remove these days.
+    Then find months with one relation only, this must be a connection to the year. Remove these months.
+    Finally find years with one relation only, this must be a connection to the Gregorian calendar. Remove these years.
+    Compare with method remove_date(ds), that will check to remove only a specific date.
+    :return:
+    """
+    # First Remove Days
+    clear_date_node("Day")
+    clear_date_node("Month")
+    clear_date_node("Year")
+
+
 def remove_date(ds):
     """
     This method will verify if a date can be removed. Day must have more than only 'DAY' relation, Month should have
     more than only "MONTH" relation and Year should have more than only incoming "YEAR" relation.
-    You need to find all nodes before attempting to remove them. calender.date function will create them in all cases.
-    :param ds: Datestamp of the Date
+    You need to find all nodes (day, month, year) before attempting to remove them. calender.date function will create
+    them in all cases. Compare with method clear_date(), that will scan the database and remove all days, months and
+    years that are no longer used.
+    :param ds: Datestamp of the Date (YYYY-MM-DD, as provided by Day.Key)
     :return:
     """
     day_node = calendar.date(ds.year, ds.month, ds.day).day

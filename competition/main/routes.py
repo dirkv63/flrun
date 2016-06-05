@@ -97,7 +97,7 @@ def person_list():
 @main.route('/person/<pers_id>')
 def person_summary(pers_id):
     """
-    This method provides all information about a single participant. In case this is an 'isolated' participant
+    This method provides all information about a single participant. In case this is an 'isolated' person
     (this means without link to races), then a 'Verwijder' (delete) button will be shown.
     :param pers_id: ID of the Participant for which overview info is required.
     :return:
@@ -217,15 +217,14 @@ def organization_delete(org_id):
     :return: True if the orgnaization is removed, False otherwise.
     """
     # Todo: Check on Organization Date, does this needs to be removed?
-    # Tode: Check on Organization Location, does this needs to be removed?
+    # Todo: Check on Organization Location, does this needs to be removed?
     current_app.logger.debug("Delete organization {org_id}".format(org_id=org_id))
-    if pu.get_end_nodes(start_node_id=org_id, rel_type="has"):
-        flash("Organization cannot be removed, races are attached.")
-        return url_for('main.race_add(org_id)', org_id=org_id)
-    else:
-        pu.remove_node_force(org_id)
+    if mg.organization_delete(org_id=org_id):
         flash("Organizatie verwijderd.")
         return redirect(url_for('main.organization_list'))
+    else:
+        flash("Organizatie niet verwijderd, er zijn nog wedstrijden mee verbonden.")
+        return url_for('main.race_add(org_id)', org_id=org_id)
 
 
 @main.route('/race/<org_id>/list')
@@ -279,13 +278,34 @@ def race_add(org_id):
         return render_template('race_add.html', form=form, name=name, org_id=org_id, org_label=org_label)
 
 
-@main.route('/participant/<race_id>/add', methods=['GET', 'POST'])
+@main.route('/race/delete/<race_id>', methods=['GET', 'POST'])
 @login_required
-def participant_add(race_id):
+def race_delete(race_id):
+    """
+    This method will delete an existing race. This can be done only if there are no participants attached to the
+    race.
+    :param race_id: The Node ID of the race.
+    :return: True if the race is removed, False otherwise.
+    """
+    current_app.logger.debug("Delete race {race_id}".format(race_id=race_id))
+    race = mg.Race(race_id=race_id)
+    org_id = race.get_org_id()
+    if mg.race_delete(race_id=race_id):
+        flash("Wedstrijd verwijderd.")
+        return redirect(url_for('main.race_list', org_id=org_id))
+    else:
+        flash("Wedstrijd niet verwijderd, er zijn nog deelnemers mee verbonden.")
+        return redirect(url_for('main.participant_add', race_id=race_id))
+
+
+@main.route('/participant/<org_id>/<race_id>/add', methods=['GET', 'POST'])
+@login_required
+def participant_add(org_id, race_id):
     """
     This method will add a person to a race. The previous runner (earlier arrival) is selected from drop-down list.
     By default the person is appended as tha last position in the race, so the previous person was the last one in the
     race. First position is specified as previous runner equals -1.
+    :param org_id: Node ID of the organization.
     :param race_id: ID of the race.
     :return:
     """
@@ -302,7 +322,7 @@ def participant_add(race_id):
         # Create the participant node, connect to person and to race.
         part = mg.Participant()
         part.add(race_id=race_id, pers_id=runner_id, prev_pers_id=prev_runner_id)
-        return redirect(url_for('main.participant_add', race_id=race_id))
+        return redirect(url_for('main.participant_add', org_id=org_id, race_id=race_id))
     else:
         # Get method, initialize page.
         current_app.logger.debug("Initialize page")
@@ -311,8 +331,12 @@ def participant_add(race_id):
         form.name.choices = mg.next_participant(race_id)
         form.prev_runner.choices = mg.participant_after_list(race_id)
         finishers = mg.participant_seq_list(race_id)
+        if len(finishers):
+            remove_race = "No"
+        else:
+            remove_race = "Yes"
         return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers,
-                               race_label=race_label)
+                               race_label=race_label, remove_race=remove_race, org_id=org_id)
 
 
 @main.route('/participant/remove/<race_id>/<pers_id>', methods=['GET', 'POST'])

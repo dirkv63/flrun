@@ -378,6 +378,10 @@ class Organization:
         This method will check if the organization is registered already. If not, the organization graph object
         (exists of organization name with link to date and city where it is organized) will be created.
         The organization instance attributes will be set.
+        Edit function needs to redirect relations, so it has begin and end nodes. This function can then remove single
+        date nodes and location nodes if required. The Organization delete function will force to remove an organization
+        node without a need to find the date and location first. Therefore the delete function requires a more generic
+        date and location removal, where check on all orphans is done.
         :param properties: New set of properties for the node. These properties are: name, location, datestamp and
          org_type
         :return: True if the organization has been updated, False if it existed already.
@@ -766,6 +770,28 @@ def organization_list():
     return graph.cypher.execute(query)
 
 
+def organization_delete(org_id=None):
+    """
+    This methdod will delete an organization. This can be done only if there are no more races attached to the
+    organization. If an organization is removed, then check is done for orphan date and orphan location. If available,
+    these will also be removed.
+    :param org_id:
+    :return:
+    """
+    if pu.get_end_nodes(start_node_id=org_id, rel_type="has"):
+        logging.info("Organization with id {org_id} cannot be removed, races are attached.".format(org_id=org_id))
+        return False
+    else:
+        # Remove Organization
+        pu.remove_node_force(org_id)
+        # Check if this results in orphan dates, remove these dates
+        pu.clear_date()
+        # Check if this results in orphan locations, remove these locations.
+        pu.clear_locations()
+        logging.info("Organization with id {org_id} removed.".format(org_id=org_id))
+        return True
+
+
 def get_org_id(race_id):
     """
     This method will return the organization ID for a Race ID: Organization has Race.
@@ -874,6 +900,23 @@ def races4person(pers_id):
     recordlist = graph.cypher.execute(query)
     races = [{'race_id': record.race_id, 'race_label': race_label(record.race_id)} for record in recordlist]
     return races
+
+
+def race_delete(race_id=None):
+    """
+    This methdod will delete a race. This can be done only if there are no more participants attached to the
+    race.
+    :param race_id: Node ID of the race to be removed.
+    :return: True if race is removed, False otherwise.
+    """
+    if pu.get_start_nodes(end_node_id=race_id, rel_type="participates"):
+        logging.info("Race with id {race_id} cannot be removed, participants are attached.".format(race_id=race_id))
+        return False
+    else:
+        # Remove Organization
+        pu.remove_node_force(race_id)
+        logging.info("Race with id {race_id} removed.".format(race_id=race_id))
+        return True
 
 
 def person_list():
