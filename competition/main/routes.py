@@ -254,27 +254,34 @@ def race_list(org_id):
 
 @main.route('/race/<org_id>/add', methods=['GET', 'POST'])
 @login_required
-def race_add(org_id):
+def race_add(org_id, race_id=None):
     name = None
     form = RaceAdd()
     org = mg.Organization(org_id=org_id)
     org_label = org.get_label()
     if not org.ask_for_hoofdwedstrijd():
         del form.raceType
-    if form.validate_on_submit():
-        name = form.name.data
-        if form.raceType:
-            racetype = form.raceType.data
-        else:
-            racetype = False
-        if mg.Race(org_id).add(name, racetype):
-            flash(name + ' created as a Race in Organization')
-        else:
-            flash(name + ' does exist already, not created.')
-        # Form validated successfully, clear fields!
-        return redirect(url_for('main.race_list', org_id=org_id))
+    if request.method == "POST":
+        if form.validate_on_submit():
+            name = form.name.data
+            if form.raceType:
+                racetype = form.raceType.data
+            else:
+                racetype = False
+            if race_id:
+                if mg.Race(org_id, race_id).edit(name):
+                    flash(name + ' modified as a Race in Organization')
+                else:
+                    flash(name + ' does exist already, not created.')
+            else:
+                if mg.Race(org_id).add(name, racetype):
+                    flash(name + ' created as a Race in Organization')
+                else:
+                    flash(name + ' does exist already, not created.')
+            # Form validated successfully, clear fields!
+            return redirect(url_for('main.race_list', org_id=org_id))
     else:
-        # Form did not validate successfully, keep fields.
+        # Get Form.
         return render_template('race_add.html', form=form, name=name, org_id=org_id, org_label=org_label)
 
 
@@ -296,6 +303,19 @@ def race_delete(race_id):
     else:
         flash("Wedstrijd niet verwijderd, er zijn nog deelnemers mee verbonden.")
         return redirect(url_for('main.participant_add', race_id=race_id))
+
+
+@main.route('/race/edit/<org_id>/<race_id>', methods=['GET', 'POST'])
+@login_required
+def race_edit(org_id, race_id):
+    """
+    This method will edit an existing race.
+    :param org_id: The Node ID of the organization.
+    :param race_id: The Node ID of the race.
+    :return:
+    """
+    current_app.logger.debug("Evaluate Race/edit")
+    return race_add(org_id=org_id, race_id=race_id)
 
 
 @main.route('/participant/<org_id>/<race_id>/add', methods=['GET', 'POST'])

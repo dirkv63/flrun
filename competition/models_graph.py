@@ -690,6 +690,20 @@ class Race:
             # self.find(name, location, datestamp)
             return True
 
+    def edit(self, name):
+        """
+        This method will update the name of the race. It is not possible to modify the race type in this step.
+        :param name: Name of the race
+        :return: True if the race has been updated, False otherwise.
+        """
+        # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
+        logging.debug("Edit race to new name: {name}".format(name=name))
+        self.name = name
+        race_id = self.race_id
+        props = {name: self.name}
+        pu.node_update(race_id, **props)
+        return True
+
     def node_set(self, nid=None):
         """
         Given the node_id, this method will configure the race object.
