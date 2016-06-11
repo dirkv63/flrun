@@ -263,13 +263,14 @@ def race_add(org_id, race_id=None):
         del form.raceType
     if request.method == "POST":
         if form.validate_on_submit():
+            current_app.logger.debug("Post Race org: {org_id}, race: {race_id}".format(org_id=org_id, race_id=race_id))
             name = form.name.data
             if form.raceType:
                 racetype = form.raceType.data
             else:
                 racetype = False
             if race_id:
-                if mg.Race(org_id, race_id).edit(name):
+                if mg.Race(race_id=race_id).edit(name):
                     flash(name + ' modified as a Race in Organization')
                 else:
                     flash(name + ' does exist already, not created.')
@@ -282,7 +283,12 @@ def race_add(org_id, race_id=None):
             return redirect(url_for('main.race_list', org_id=org_id))
     else:
         # Get Form.
-        return render_template('race_add.html', form=form, name=name, org_id=org_id, org_label=org_label)
+        current_app.logger.debug("Get Race org: {org_id}, race: {race_id}".format(org_id=org_id, race_id=race_id))
+        label = 'toevoegen aan'
+        if race_id:
+            form.name.data = mg.Race(race_id=race_id).get_name()
+            label = 'aanpassen van'
+        return render_template('race_add.html', form=form, org_id=org_id, org_label=org_label, label=label)
 
 
 @main.route('/race/delete/<race_id>', methods=['GET', 'POST'])

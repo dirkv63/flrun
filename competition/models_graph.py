@@ -618,9 +618,15 @@ class Organization:
 class Race:
     """
     This class instantiates to a race. This can be done as a new race that links to an organization, in which case
-    org_id needs to be specified, or it can be done as a race node ID.
+    org_id needs to be specified, or it can be done as a race node ID (in which case org_id should be none).
     """
     def __init__(self, org_id=None, race_id=None):
+        """
+        Define the Race object.
+        :param org_id: Node ID of the Organization, used to create a new race.
+        :param race_id: Node ID of the Race, to handle an existing race.
+        :return:
+        """
         self.name = 'NotYetDefined'
         self.label = 'NotYetDefined'
         self.org_id = 'NotYetDefined'
@@ -628,6 +634,7 @@ class Race:
         if org_id:
             self.org_id = org_id
         elif race_id:
+            print("Trying to set Race Object for Race ID {race_id}".format(race_id=race_id))
             logging.debug("Trying to set Race Object for ID {race_id}".format(race_id=race_id))
             self.node_set(nid=race_id)
 
@@ -700,7 +707,7 @@ class Race:
         logging.debug("Edit race to new name: {name}".format(name=name))
         self.name = name
         race_id = self.race_id
-        props = {name: self.name}
+        props = {'name': self.name}
         pu.node_update(race_id, **props)
         return True
 
@@ -712,9 +719,10 @@ class Race:
         """
         logging.debug("In node_set to create race node for id {node_id}".format(node_id=nid))
         self.race_id = nid
-        race_node = Node(self.race_id)
+        race_node = pu.node(self.race_id)
         logging.debug("Race node set")
         self.name = race_node.properties['name']
+        logging.debug("Name: {name}".format(name=self.name))
         self.org_id = self.get_org_id()
         self.label = self.set_label()
         return
@@ -733,6 +741,13 @@ class Race:
         logging.debug("ID of the Org for Race ID {race_id} is {org_id}"
                       .format(org_id=org_id_arr[0], race_id=self.race_id))
         return org_id_arr[0].id
+
+    def get_name(self):
+        """
+        This method get the name of the race.
+        :return: org_id
+        """
+        return self.name
 
     def set_label(self):
         """
