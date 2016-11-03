@@ -14,6 +14,21 @@ import re
 import sys
 
 
+def init_env(projectname, filename):
+    """
+    This function will initialize the environment: Find and return handle to config file and set-up logging.
+    @param projectname: Name that will be used to find ini file in properties subdirectory.
+    @param filename: Filename (__file__) of the calling script (for logfile).
+    @return: config handle
+    """
+    projectname = projectname
+    modulename = get_modulename(filename)
+    config = get_inifile(projectname, filename)
+    my_log = init_loghandler(config, modulename)
+    my_log.info('Start Application')
+    return config
+
+
 def get_modulename(scriptname):
     """
     Modulename is required for logfile and for properties file.
@@ -64,16 +79,18 @@ def init_loghandler(config, modulename):
     :return: Log Handler
     """
     logdir = config['Main']['logdir']
+    loglevel = config['Main']['loglevel'].upper()
     # Extract Computername
     computername = platform.node()
     # Define logfileName
     logfile = logdir + "/" + modulename + "_" + computername + ".log"
     # Configure the root logger
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
+    level = logging.getLevelName(loglevel)
+    logger.setLevel(level)
     # Create Console Handler
     ch = logging.StreamHandler()
-    ch.setLevel(logging.INFO)
+    ch.setLevel(level)
     # Create Rotating File Handler
     # Get logfiles of 1M
     maxbytes = 1024 * 1024

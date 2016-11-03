@@ -3,109 +3,10 @@ This module is a wrapper for py2neo functions.
 """
 import logging
 import sys
+from lib import neostore
+
 from py2neo import Graph, Node, batch, Relationship
 from py2neo.ext.calendar import GregorianCalendar
-
-graph = Graph()
-calendar = GregorianCalendar(graph)
-
-
-def clear_date_node(label):
-    """
-    This method will clear the date node as specified by label. Label can be Day, Month or Year.
-    :param label: Day, Month or Year
-    :return:
-    """
-    query = """
-        MATCH (n:«label»)-[rel]-()
-        WITH n, count(rel) as rel_cnt
-        WHERE rel_cnt=1
-        RETURN id(n) as nid, n.key as key
-    """
-    reclist = graph.cypher.execute(query, label=label)
-    for rec in reclist:
-        logging.info("Deleting date node {date}".format(date=rec.key))
-        remove_node_force(rec.nid)
-    return
-
-
-def node(nid):
-    """
-    This method will get a node ID and return a node, or false in case no Node can be associated with the ID.
-    :param nid: ID of the node to be found.
-    :return: Node, or False in case the node could not be found.
-    """
-    node_obj = graph.node(nid)
-    if node_obj.exists:
-        return node_obj
-    else:
-        logging.error("Non-existing node ID: {nid}".format(nid=nid))
-        return False
-
-
-def node_id(node_obj):
-    """
-    This method gets a node and returns the node ID. In py2neo 2.08 node.ref returns 'node/id'. This function will
-    strip 'node/' and return the id as an integer.
-    :param node_obj: Node object
-    :return: ID of the node (integer), or False.
-    """
-    if type(node_obj) is Node:
-        nid = node_obj.ref[5:]
-        logging.debug("Node: {node}, ID: {id}".format(node=node_obj, id=nid))
-        return int(nid)
-    else:
-        logging.error("Node expected, but got {nodetype}".format(nodetype=type(node_obj)))
-        # Todo: this should return False if there is no node ID.
-        return False
-
-
-def node_props(nid=None):
-    """
-    This method will get a node and return the node properties in a dictionary.
-    :param nid: ID of the node required
-    :return: Dictionary of the node properties
-    """
-    my_node = graph.node(nid)
-    if my_node.exists:
-        logging.debug("Node Properties: {props}".format(props=my_node.properties))
-        return my_node.properties
-    else:
-        logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
-        return False
-
-
-def node_update(nid, **properties):
-    """
-    This method will update the node's properties with the properties specified. Modified properties will be updated,
-    new properties will be added and removed properties will be deleted.
-    :param nid: ID of the node to modify.
-    :param properties: Dictionary of the property set for the node.
-    :return: True if successful update, False otherwise.
-    """
-    my_node = graph.node(nid)
-    if my_node.exists:
-        curr_props = node_props(nid)
-        # Remove properties
-        remove_props = [prop for prop in curr_props if prop not in properties]
-        for prop in remove_props:
-            del my_node[prop]
-        # Modify properties and add new properties
-        for prop in properties:
-            my_node[prop] = properties[prop]
-        # Now update node with new information
-        try:
-            my_node.push()
-        except batch.core.BatchError:
-            e = sys.exc_info()[1]
-            ec = sys.exc_info()[0]
-            log_msg = "Error Class: %s, Message: %s"
-            logging.critical(log_msg, ec, e)
-            return False
-        return True
-    else:
-        logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
-        return False
 
 
 def get_start_node(end_node_id=None, rel_type=None):
@@ -254,22 +155,6 @@ def clear_locations():
     return
 
 
-def clear_date():
-    """
-    This method will clear dates that are no longer connected to an organization, a person's birthday or any other
-    item.
-    First find days with one relation only, this must be a connection to the month. Remove these days.
-    Then find months with one relation only, this must be a connection to the year. Remove these months.
-    Finally find years with one relation only, this must be a connection to the Gregorian calendar. Remove these years.
-    Compare with method remove_date(ds), that will check to remove only a specific date.
-    :return:
-    """
-    # First Remove Days
-    clear_date_node("Day")
-    clear_date_node("Month")
-    clear_date_node("Year")
-
-
 def remove_date(ds):
     """
     This method will verify if a date can be removed. Day must have more than only 'DAY' relation, Month should have
@@ -310,19 +195,6 @@ def remove_node(nid):
         query = "MATCH (n) WHERE id(n)={node_id} DELETE n"
         graph.cypher.execute(query.format(node_id=nid))
         return True
-
-
-def remove_node_force(nid):
-    """
-    This method will remove node with ID node_id. The node and the relations to/from the node will also be deleted.
-    Use 'remove_node' to remove nodes only when there should be no relations attached to it.
-    :param nid: ID of the node
-    :return: True if node is deleted, False otherwise
-    """
-    logging.debug("Trying to remove node with ID {nid}".format(nid=nid))
-    query = "MATCH (n) WHERE id(n)={node_id} DETACH DELETE n"
-    graph.cypher.execute(query.format(node_id=nid))
-    return True
 
 
 def remove_relation(start_nid, end_nid, rel_type):
