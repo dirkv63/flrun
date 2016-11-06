@@ -84,6 +84,9 @@ def init_loghandler(config, modulename):
     computername = platform.node()
     # Define logfileName
     logfile = logdir + "/" + modulename + "_" + computername + ".log"
+    # Set loglevel for bolt driver to warning
+    # logging.getLogger("bolt").setLevel(logging.WARNING)
+    # logging.getLogger("http").setLevel(logging.WARNING)
     # Configure the root logger
     logger = logging.getLogger()
     level = logging.getLevelName(loglevel)

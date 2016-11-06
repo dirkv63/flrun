@@ -7,6 +7,7 @@ import sys
 import uuid
 from py2neo import Graph, Node, Relationship, NodeSelector
 from py2neo.database import DBMS
+from py2neo.ext.calendar import GregorianCalendar
 
 
 class NeoStore:
@@ -20,6 +21,7 @@ class NeoStore:
         logging.debug("Initializing Neostore object")
         self.config = config
         self.graph = self._connect2db()
+        self.calendar = GregorianCalendar(self.graph)
         self.selector = NodeSelector(self.graph)
         return
 
@@ -43,6 +45,23 @@ class NeoStore:
             sys.exit(1)
         return graph
 
+    def clear_locations(self):
+        """
+        This method will check if there are orphan locations. These are locations without relations. These locations
+        can be removed.
+        :return:
+        """
+        # Note that you could DETACH DELETE location nodes here, but then you miss the opportunity to log what is
+        # removed.
+        query = """
+            MATCH (loc:Location) WHERE NOT (loc)--() RETURN loc.nid as loc_nid, loc.city as city
+        """
+        res = self.graph.run(query)
+        for locs in res:
+            logging.info("Remove location {city} with nid {loc_nid}".format(city=locs['city'], loc_nid=locs['loc_nid']))
+            self.remove_node(locs['loc_nid'])
+        return
+
     def create_node(self, *labels, **props):
         """
         Function to create node. The function will return the node object.
@@ -57,7 +76,7 @@ class NeoStore:
         self.graph.create(component)
         return component
 
-    def create_relation(self, left_node, rel, right_node):
+    def create_relation(self, left_node=None, rel=None, right_node=None):
         """
         Function to create relationship between nodes.
         @param left_node:
@@ -71,20 +90,20 @@ class NeoStore:
 
     def clear_date_node(self, label):
         """
-        This method will clear the date node as specified by label. Label can be Day, Month or Year.
+        This method will clear every date node as specified by label. Label can be Day, Month or Year. The node will be
+        deleted if not used anymore. So it can have only one incoming relation: DAY - MONTH or YEAR.
+        Therefore find all relations. If there is only one, then the date node can be deleted.
         :param label: Day, Month or Year
         :return:
         """
+        logging.info("Clearing all date nodes with label {l}".format(l=label))
         query = """
-            MATCH (n:«label»)-[rel]-()
+            MATCH (n:{label})-[rel]-()
             WITH n, count(rel) as rel_cnt
             WHERE rel_cnt=1
-            RETURN id(n) as nid, n.key as key
-        """
-        reclist = self.graph.cypher.execute(query, label=label)
-        for rec in reclist:
-            logging.info("Deleting date node {date}".format(date=rec.key))
-            self.remove_node_force(rec.nid)
+            DETACH DELETE n
+        """.format(label=label.capitalize())
+        self.graph.run(query)
         return
 
     def clear_date(self):
@@ -103,6 +122,124 @@ class NeoStore:
         self.clear_date_node("Month")
         self.clear_date_node("Year")
         return
+
+    def date_node(self, ds):
+        """
+        This method will get a datetime.date timestamp and return the associated node. The calendar module will
+        ensure that the node is created if required.
+        :param ds: datetime.date representation of the date.
+        :return: node associated with the date
+        """
+        date_node = self.calendar.date(ds.year, ds.month, ds.day).day   # Get Date (day) node
+        return date_node
+
+    def get_end_node(self, start_node_id=None, rel_type=None):
+        """
+        This method will calculate the end node from an start Node ID and a relation type. If relation type is not
+        specified then any relation type will do.
+        The purpose of the function is to find a single end node. If there are multiple end nodes, then a random one
+        is returned and an error message will be displayed.
+        :param start_node_id: Node ID of the start node.
+        :param rel_type: Relation type
+        :return: Node ID (integer) of the end Node, or False.
+        """
+        logging.debug("Find End Node. Start node ID: {node_id}, Relation Type: {rel_type}"
+                      .format(node_id=start_node_id, rel_type=rel_type))
+        # First get Node from end node ID
+        start_node = self.node(start_node_id)
+        if start_node:
+            # Then get relation to end node.
+            try:
+                rel = next(item for item in self.graph.match(start_node=start_node, rel_type=rel_type))
+            except StopIteration:
+                logging.warning("No end node found for start node ID {nid} and relation {rel}"
+                                .format(nid=start_node_id, rel=rel_type))
+            else:
+                # Check if there are more elements in the iterator.
+                if len([item for item in self.graph.match(start_node=start_node, rel_type=rel_type)]) > 1:
+                    logging.warning("More than one end node found for start node ID {nid} and relation {rel},"
+                                    " returning first".format(nid=start_node_id, rel=rel_type))
+                end_node_id = self.node_id(rel.end_node())
+                return end_node_id
+        else:
+            logging.error("Non-existing start node ID: {start_node_id}".format(start_node_id=start_node_id))
+            return False
+
+    def get_end_nodes(self, start_node_id=None, rel_type=None):
+        """
+        This method will calculate all end nodes from a start Node ID and a relation type. If relation type is not
+        specified then any relation type will do.
+        The purpose of the function is to find all end nodes.
+        :param start_node_id: Node ID of the start node.
+        :param rel_type: Relation type
+        :return: List with Node IDs (integers) of the end Nodes, or False.
+        """
+        logging.debug("Find End Nodes. Start Node ID: {node_id}, Relation Type: {rel_type}"
+                      .format(node_id=start_node_id, rel_type=rel_type))
+        # First get Node from end node ID
+        start_node = self.node(start_node_id)
+        if start_node.exists:
+            # Then get relation to end node.
+            node_list = [self.node_id(rel.end_node())
+                         for rel in self.graph.match(start_node=start_node, rel_type=rel_type)]
+            return node_list
+        else:
+            logging.error("Non-existing start node ID: {start_node_id}".format(start_node_id=start_node_id))
+            return False
+
+    def get_start_node(self, end_node_id=None, rel_type=None):
+        """
+        This method will calculate the start node from an end Node ID and a relation type. If relation type is not
+        specified then any relation type will do.
+        The purpose of the function is to find a single start node. If there are multiple start nodes, then a random
+        one is returned and an error message will be displayed.
+        :param end_node_id: Node nid of the end node.
+        :param rel_type: Relation type
+        :return: Node nid of the start Node, or False.
+        """
+        logging.debug("Find Start Node. End Node ID: {node_id}, Relation Type: {rel_type}"
+                      .format(node_id=end_node_id, rel_type=rel_type))
+        # First get Node from end node ID
+        end_node = self.node(end_node_id)
+        if end_node:
+            # Then get relation to end node.
+            try:
+                rel = next(item for item in self.graph.match(end_node=end_node, rel_type=rel_type))
+            except StopIteration:
+                logging.warning("No start node found for end node ID {nid} and relation {rel}"
+                                .format(nid=end_node_id, rel=rel_type))
+            else:
+                # Check if there are more elements in the iterator.
+                if len([item for item in self.graph.match(end_node=end_node, rel_type=rel_type)]) > 1:
+                    logging.warning("More than one start node found for end node ID {nid} and relation {rel},"
+                                    " returning first".format(nid=end_node_id, rel=rel_type))
+                start_node_id = self.node_id(rel.start_node())
+                return start_node_id
+        else:
+            logging.error("Non-existing end node ID: {end_node_id}".format(end_node_id=end_node_id))
+            return False
+
+    def get_start_nodes(self, end_node_id=None, rel_type=None):
+        """
+        This method will calculate all start nodes from an end Node ID and a relation type. If relation type is not
+        specified then any relation type will do.
+        The purpose of the function is to find all start nodes.
+        :param end_node_id: Node nid of the end node.
+        :param rel_type: Relation type
+        :return: List with Node IDs (integers) of the start Node, or False.
+        """
+        logging.debug("Find Start Nodes. End Node ID: {node_id}, Relation Type: {rel_type}"
+                      .format(node_id=end_node_id, rel_type=rel_type))
+        # First get Node from end node ID
+        end_node = self.node(end_node_id)
+        if end_node:
+            # Then get relation to end node.
+            node_list = [self.node_id(rel.start_node())
+                         for rel in self.graph.match(end_node=end_node, rel_type=rel_type)]
+            return node_list
+        else:
+            logging.error("Non-existing end node ID: {end_node_id}".format(end_node_id=end_node_id))
+            return False
 
     def node(self, nid):
         """
@@ -183,15 +320,97 @@ class NeoStore:
             my_node['nid'] = nid
             # Now push the changes to Neo4J database.
             self.graph.push(my_node)
+            return True
+        else:
+            logging.error("No node found for NID {nid}".format(nid=nid))
+            return False
+
+    def relations(self, nid):
+        """
+        This method will check if node with ID has relations. Returns True if there are relations, returns False
+        otherwise.
+        :param nid: ID of the object to check relations
+        :return: Number of relations - if there are relations, False - there are no relations.
+        """
+        logging.debug("In method relations for nid {node_id}".format(node_id=nid))
+        obj_node = self.node(nid)
+        if obj_node:
+            if obj_node.degree():
+                logging.debug("Relations found")
+                return obj_node.degree()
+            else:
+                logging.debug("No Relations found")
+        else:
+            logging.error("ID {id} cannot be bound to a node".format(id=nid))
+        return False
+
+    def remove_date(self, ds):
+        """
+        This method will verify if a date can be removed. Day must have more than only 'DAY' relation, Month should have
+        more than only "MONTH" relation and Year should have more than only incoming "YEAR" relation.
+        You need to find all nodes (day, month, year) before attempting to remove them. calender.date function will
+        create them in all cases. Compare with method clear_date(), that will scan the database and remove all days,
+        months and years that are no longer used.
+        :param ds: Datestamp of the Date (YYYY-MM-DD, as provided by Day.Key)
+        :return:
+        """
+        day_node = self.calendar.date(ds.year, ds.month, ds.day).day
+        day_node_id = self.node_id(day_node)
+        month_node = self.calendar.date(ds.year, ds.month, ds.day).month
+        month_node_id = self.node_id(month_node)
+        year_node = self.calendar.date(ds.year, ds.month, ds.day).year
+        year_node_id = self.node_id(year_node)
+        if self.relations(day_node_id) == 1:
+            self.remove_node_force(day_node_id)
+            if self.relations(month_node_id) == 1:
+                self.remove_node_force(month_node_id)
+                if self.relations(year_node_id) == 1:
+                    self.remove_node_force(year_node_id)
+        return
+
+    def remove_node(self, nid):
+        """
+        This method will remove node with ID node_id. Nodes can be removed only if there are no relations attached to
+        the node.
+        :param nid:
+        :return: True if node is deleted, False otherwise
+        """
+        if self.relations(nid):
+            logging.error("Request to delete node nid {node_id}, but relations found. Node not deleted"
+                          .format(node_id=nid))
+            return False
+        else:
+            query = "MATCH (n) WHERE n.nid={nid} DELETE n"
+            self.graph.run(query, nid=nid)
+            return True
 
     def remove_node_force(self, nid):
         """
         This method will remove node with ID node_id. The node and the relations to/from the node will also be deleted.
         Use 'remove_node' to remove nodes only when there should be no relations attached to it.
-        :param nid: ID of the node
+        :param nid: nid of the node
         :return: True if node is deleted, False otherwise
         """
-        logging.debug("Trying to remove node with ID {nid}".format(nid=nid))
-        query = "MATCH (n) WHERE id(n)={node_id} DETACH DELETE n"
-        self.graph.cypher.execute(query.format(node_id=nid))
+        logging.debug("Trying to remove node with nid {nid}".format(nid=nid))
+        query = "MATCH (n) WHERE n.nid={nid} DETACH DELETE n"
+        self.graph.run(query, nid=nid)
         return True
+
+    def remove_relation(self, start_nid=None, end_nid=None, rel_type=None):
+        """
+        This method will remove the relation rel_type between Node with nid start_nid and Node with nid end_nid.
+        Relation is of type rel_type.
+        :param start_nid: Node nid of the start node.
+        :param end_nid: Node nid of the end node.
+        :param rel_type: Type of the relation
+        :return:
+        """
+        query = """
+            MATCH (start_node)-[rel_type:{rel_type}]->(end_node)
+            WHERE start_node.nid='{start_nid}'
+              AND end_node.nid='{end_nid}'
+            DELETE rel_type
+        """.format(rel_type=rel_type, start_nid=start_nid, end_nid=end_nid)
+        logging.debug("Remove Relation: {q}".format(q=query))
+        self.graph.run(query)
+        return

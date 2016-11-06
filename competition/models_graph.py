@@ -1,14 +1,17 @@
 import logging
 import sys
-import competition.p2n_wrapper as pu
 from lib import my_env
+from lib import neostore
 from py2neo import Graph, Node, Relationship
 from py2neo.ext.calendar import GregorianCalendar
 
-graph = Graph()
+cfg = my_env.init_env("flaskrun", __file__)
+ns = neostore.NeoStore(cfg)
+graph = ns._connect2db()
 calendar = GregorianCalendar(graph)
 # watch("py2neo.cypher")
 # Set Node IDs, to improve performance.
+
 
 
 class Participant:
@@ -71,7 +74,7 @@ class Participant:
         :return: Node ID of the participant.
         """
         self.part, = graph.create(Node("Participant"))  # Create returns tuple
-        self.part_id = pu.node_id(self.part)
+        self.part_id = ns.node_id(self.part)
         race = graph.node(race_id)
         graph.create(Relationship(self.part, "participates", race))
         runner = graph.node(pers_id)
@@ -106,7 +109,7 @@ class Participant:
                 # Add link between prev_part and part
                 self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
                 # Remove 'after' relation between prev_part and next_part
-                pu.remove_relation(next_part_id, prev_part_id, "after")
+                ns.remove_relation(next_part_id, prev_part_id, "after")
             else:
                 # Previous participant but no next participant
                 # Create the participant node for this person
@@ -141,7 +144,7 @@ class Participant:
             if 'Participant' in node.labels:
                 return True
             else:
-                nid = pu.node_id(node)
+                nid = ns.node_id(node)
                 logging.error("Got node ID {nid}, but this is not of type participant".format(nid=nid))
         else:
             logging.error("Expected object type Node, got {obj_type}".format(obj_type=type(node)))
@@ -176,7 +179,7 @@ class Participant:
             self.prev_runner_id = -2
             return False
         else:
-            self.prev_runner_id = pu.node_id(rel.end_node)
+            self.prev_runner_id = ns.node_id(rel.end_node)
             return self.prev_runner_id
 
     def next_runner(self):
@@ -195,7 +198,7 @@ class Participant:
             self.next_runner_id = -2
             return False
         else:
-            self.next_runner_id = pu.node_id(rel.start_node)
+            self.next_runner_id = ns.node_id(rel.start_node)
             return self.next_runner_id
 
     def remove(self):
@@ -208,7 +211,7 @@ class Participant:
             rel = Relationship(graph.node(self.next_runner_id), "after", graph.node(self.prev_runner_id))
             graph.create(rel)
         # Remove Participant Node
-        pu.remove_node_force(self.part_id)
+        ns.remove_node_force(self.part_id)
         # Reset Object
         self.part_id = -1
         self.part = None
@@ -263,7 +266,7 @@ class Person:
         :param properties: New set of properties for the node
         :return: True - in case node is rewritten successfully.
         """
-        pu.node_update(self.person_id, **properties)
+        ns.node_update(self.person_id, **properties)
         return True
 
     def set(self, person_id):
@@ -294,7 +297,7 @@ class Person:
         This method will return the properties for the node in a dictionary format.
         :return:
         """
-        return pu.node_props(nid=self.person_id)
+        return ns.node_props(nid=self.person_id)
 
 
 class Organization:
@@ -404,7 +407,7 @@ class Organization:
                     node_prop = dict(
                         name=properties["name"]
                     )
-                    pu.node_update(self.org_id, **node_prop)
+                    ns.node_update(self.org_id, **node_prop)
                     logging.debug("Name needs to be updated from {on} to {nn}"
                                   .format(on=self.org["name"], nn=properties["name"]))
                 if 'location' in changed_keys:
@@ -412,13 +415,13 @@ class Organization:
                                   .format(ol=self.org["location"], nl=properties["location"]))
                     # Remember current location - before fiddling around with relations!
                     curr_loc = Location(self.org["location"]).get_node()
-                    curr_loc_id = pu.node_id(curr_loc)
+                    curr_loc_id = ns.node_id(curr_loc)
                     # First create link to new location
                     self.set_location(properties["location"])
                     # Then remove link to current location
-                    pu.remove_relation(self.org_id, curr_loc_id, "In")
+                    ns.remove_relation(self.org_id, curr_loc_id, "In")
                     # Finally check if current location is still required. Remove if there are no more links.
-                    pu.remove_node(curr_loc_id)
+                    ns.remove_node(curr_loc_id)
                 if 'datestamp' in changed_keys:
                     logging.debug("Date needs to be updated from {od} to {nd}"
                                   .format(od=type(self.org["datestamp"]), nd=type(properties["datestamp"])))
@@ -428,9 +431,9 @@ class Organization:
                     # First create link to new date
                     self.set_date(properties["datestamp"])
                     # Then remove link from current date
-                    pu.remove_relation(self.org_id, pu.node_id(curr_date_node), "On")
+                    ns.remove_relation(self.org_id, ns.node_id(curr_date_node), "On")
                     # Finally check if date (day, month, year) can be removed.
-                    pu.remove_date(curr_ds)
+                    ns.remove_date(curr_ds)
         return True
 
     def set(self, org_id):
@@ -479,8 +482,8 @@ class Organization:
         This method will return the location for the Organization.
         :return: Location name (city name), or False if no location found.
         """
-        loc_id = pu.get_end_node(self.org_id, "In")
-        loc_node = pu.node(loc_id)
+        loc_id = ns.get_end_node(self.org_id, "In")
+        loc_node = ns.node(loc_id)
         city = loc_node["city"]
         return city
 
@@ -489,8 +492,8 @@ class Organization:
         This method will return the date for the Organization.
         :return: Date, Format YYYY-MM-DD
         """
-        date_id = pu.get_end_node(self.org_id, "On")
-        date_node = pu.node(date_id)
+        date_id = ns.get_end_node(self.org_id, "On")
+        date_node = ns.node(date_id)
         datestamp = date_node["key"]
         return datestamp
 
@@ -505,9 +508,9 @@ class Organization:
             "Deelname": 2
             }
         org_type_name = 'Wedstrijd'
-        org_type_id = pu.get_end_node(self.org_id, "type")
+        org_type_id = ns.get_end_node(self.org_id, "type")
         if org_type_id:
-            org_type_node = pu.node(org_type_id)
+            org_type_node = ns.node(org_type_id)
             org_type_name = org_type_node["name"]
         return org_type[org_type_name]
 
@@ -549,7 +552,7 @@ class Organization:
         :return:
         """
         loc_node = Location(loc).get_node()   # Get Location Node
-        pu.create_relation(start_node=self.org_node, end_node=loc_node, rel_type="In")
+        ns.create_relation(left_node=self.org_node, right_node=loc_node, rel="In")
         return
 
     def set_date(self, ds=None):
@@ -578,9 +581,9 @@ class Organization:
                       .format(cot=curr_org_type, newot=new_org_type))
         # First get node and node_id for Organization Type Wedstrijd and Organization Type Deelname
         org_type_wedstrijd = graph.merge_one("OrgType", "name", "Wedstrijd")
-        org_type_wedstrijd_id = pu.node_id(org_type_wedstrijd)
+        org_type_wedstrijd_id = ns.node_id(org_type_wedstrijd)
         org_type_deelname = graph.merge_one("OrgType", "name", "Deelname")
-        org_type_deelname_id = pu.node_id(org_type_deelname)
+        org_type_deelname_id = ns.node_id(org_type_deelname)
         race_type_wedstrijd = graph.merge_one("RaceType", "name", "Bijwedstrijd")
         # race_type_wedstrijd_id = pu.node_id(race_type_wedstrijd)
         race_type_deelname = graph.merge_one("RaceType", "name", "Deelname")
@@ -595,7 +598,7 @@ class Organization:
         else:
             logging.error("Unrecognized New Organization Type: {org_type}".format(org_type=new_org_type))
             return False
-        pu.create_relation(start_node=self.org_node, end_node=org_type_node, rel_type="type")
+        ns.create_relation(left_node=self.org_node, right_node=org_type_node, rel="type")
         # Remove curr_org_type for Organization
         if curr_org_type:
             if curr_org_type == 1:
@@ -605,10 +608,10 @@ class Organization:
             else:
                 logging.error("Unrecognized Current Organization Type: {org_type}".format(org_type=curr_org_type))
                 return False
-            pu.remove_relation(start_nid=self.org_id, end_nid=org_type_node_id, rel_type="type")
+            ns.remove_relation(start_nid=self.org_id, end_nid=org_type_node_id, rel_type="type")
         # Set new_org_type for all races in Organization
         # Get all races for this organization
-        races = pu.get_end_nodes(self.org_id, "has")
+        races = ns.get_end_nodes(self.org_id, "has")
         # Set all race types.
         for race_id in races:
             set_race_type(race_id, race_type_node)
@@ -682,7 +685,7 @@ class Race:
         else:
             racetype = "Deelname"
         racetype_node = get_race_type_node(racetype)
-        racetype_id = pu.node_id(racetype_node)
+        racetype_id = ns.node_id(racetype_node)
         if self.find(racetype_id):
             # No need to register (Race exist already).
             return False
@@ -692,7 +695,7 @@ class Race:
             org_node = graph.node(self.org_id)
             graph.create(race)
             graph.create(Relationship(org_node, "has", race))
-            set_race_type(race_id=pu.node_id(race), race_type_node=racetype_node)
+            set_race_type(race_id=ns.node_id(race), race_type_node=racetype_node)
             # Set organization paarameters by finding the created organization
             # self.find(name, location, datestamp)
             return True
@@ -708,7 +711,7 @@ class Race:
         self.name = name
         race_id = self.race_id
         props = {'name': self.name}
-        pu.node_update(race_id, **props)
+        ns.node_update(race_id, **props)
         return True
 
     def node_set(self, nid=None):
@@ -719,7 +722,7 @@ class Race:
         """
         logging.debug("In node_set to create race node for id {node_id}".format(node_id=nid))
         self.race_id = nid
-        race_node = pu.node(self.race_id)
+        race_node = ns.node(self.race_id)
         logging.debug("Race node set")
         self.name = race_node.properties['name']
         logging.debug("Name: {name}".format(name=self.name))
@@ -807,16 +810,16 @@ def organization_delete(org_id=None):
     :param org_id:
     :return:
     """
-    if pu.get_end_nodes(start_node_id=org_id, rel_type="has"):
+    if ns.get_end_nodes(start_node_id=org_id, rel_type="has"):
         logging.info("Organization with id {org_id} cannot be removed, races are attached.".format(org_id=org_id))
         return False
     else:
         # Remove Organization
-        pu.remove_node_force(org_id)
+        ns.remove_node_force(org_id)
         # Check if this results in orphan dates, remove these dates
-        pu.clear_date()
+        ns.clear_date()
         # Check if this results in orphan locations, remove these locations.
-        pu.clear_locations()
+        ns.clear_locations()
         logging.info("Organization with id {org_id} removed.".format(org_id=org_id))
         return True
 
@@ -827,7 +830,7 @@ def get_org_id(race_id):
     :param race_id: Node ID of the race.
     :return: Node ID of the organization.
     """
-    org_id = pu.get_start_node(end_node_id=race_id, rel_type="has")
+    org_id = ns.get_start_node(end_node_id=race_id, rel_type="has")
     return org_id
 
 
@@ -882,7 +885,7 @@ def get_races_for_org(org_id):
     :param org_id: Node ID of the Organization.
     :return: List of node IDs of races.
     """
-    races = pu.get_end_nodes(start_node_id=org_id, rel_type="has")
+    races = ns.get_end_nodes(start_node_id=org_id, rel_type="has")
     return races
 
 
@@ -938,12 +941,12 @@ def race_delete(race_id=None):
     :param race_id: Node ID of the race to be removed.
     :return: True if race is removed, False otherwise.
     """
-    if pu.get_start_nodes(end_node_id=race_id, rel_type="participates"):
+    if ns.get_start_nodes(end_node_id=race_id, rel_type="participates"):
         logging.info("Race with id {race_id} cannot be removed, participants are attached.".format(race_id=race_id))
         return False
     else:
         # Remove Organization
-        pu.remove_node_force(race_id)
+        ns.remove_node_force(race_id)
         logging.info("Race with id {race_id} removed.".format(race_id=race_id))
         return True
 
@@ -976,7 +979,7 @@ def person4participant(part_id):
     rel = next(item for item in graph.match(end_node=part, rel_type="is"))
     # logging.debug("Node: {node}".format(node=rel.start_node.ref))
     pers_name = rel.start_node["name"]
-    pers_id = pu.node_id(rel.start_node)
+    pers_id = ns.node_id(rel.start_node)
     return dict(name=pers_name, id=pers_id)
 
 
@@ -1023,7 +1026,7 @@ def participant_seq_list(race_id):
             rel = next(item for item in graph.match(end_node=part, rel_type="is"))
             logging.debug("Node: {node}".format(node=rel.start_node.ref))
             pers_name = rel.start_node["name"]
-            pers_id = pu.node_id(rel.start_node)
+            pers_id = ns.node_id(rel.start_node)
             logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_id))
             pers_obj = [pers_id, pers_name]
             finisher_list.append(pers_obj)
@@ -1152,10 +1155,10 @@ def set_race_type(race_id=None, race_type_node=None):
     :param race_type_node:
     :return:
     """
-    race_node = pu.node(race_id)
+    race_node = ns.node(race_id)
     # Check if there is a link now.
-    curr_race_type_id = pu.get_end_node(race_id, "type")
+    curr_race_type_id = ns.get_end_node(race_id, "type")
     if curr_race_type_id:
-        pu.remove_relation(race_id, curr_race_type_id, "type")
-    pu.create_relation(start_node=race_node, end_node=race_type_node, rel_type="type")
+        ns.remove_relation(race_id, curr_race_type_id, "type")
+    ns.create_relation(left_node=race_node, right_node=race_type_node, rel="type")
     return

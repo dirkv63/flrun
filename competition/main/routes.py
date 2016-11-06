@@ -1,13 +1,17 @@
 import competition.models_graph as mg
 # import logging
 # import datetime
-import competition.p2n_wrapper as pu
 from lib import my_env
+from lib import neostore
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
 from . import main
 from ..models_sql import User
+
+
+cfg = my_env.init_env("flaskrun", __file__)
+ns = neostore.NeoStore(cfg)
 
 
 @main.route('/login', methods=['GET', 'POST'])
@@ -108,7 +112,7 @@ def person_summary(pers_id):
     races = mg.races4person(pers_id)
     # Don't count on len(races), since this is this competition races. Remove person only if not used across all
     # competitions.
-    if pu.relations(pers_id):
+    if ns.relations(pers_id):
         conns = 1
     else:
         conns = 0
@@ -129,10 +133,10 @@ def person_delete(pers_id):
     part = mg.Person()
     part.set(pers_id)
     # part_name = part.get_name()
-    if pu.relations(pers_id):
+    if ns.relations(pers_id):
         current_app.logger.warning("Request to delete id {pers_id} but relations found".format(pers_id=pers_id))
     else:
-        pu.remove_node(pers_id)
+        ns.remove_node(pers_id)
     return redirect(url_for('main.person_list'))
 
 
@@ -255,7 +259,7 @@ def race_list(org_id):
 @main.route('/race/<org_id>/add', methods=['GET', 'POST'])
 @login_required
 def race_add(org_id, race_id=None):
-    name = None
+    # name = None
     form = RaceAdd()
     org = mg.Organization(org_id=org_id)
     org_label = org.get_label()
