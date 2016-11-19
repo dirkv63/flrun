@@ -68,22 +68,22 @@ class NeoStore:
         solution cause there seems to be no other way to extract the node ID from a node.
         @param labels: Labels for the node
         @param props: Value dictionary with values for the node.
-        @return: Node that has been created.
+        @return:
         """
         props['nid'] = str(uuid.uuid4())
         component = Node(*labels, **props)
         self.graph.create(component)
         return component
 
-    def create_relation(self, from_node=None, rel=None, to_node=None):
+    def create_relation(self, left_node=None, rel=None, right_node=None):
         """
         Function to create relationship between nodes.
-        @param from_node:
+        @param left_node:
         @param rel:
-        @param to_node:
+        @param right_node:
         @return:
         """
-        rel = Relationship(from_node, rel, to_node)
+        rel = Relationship(left_node, rel, right_node)
         self.graph.merge(rel)
         return
 
@@ -153,7 +153,6 @@ class NeoStore:
             except StopIteration:
                 logging.warning("No end node found for start node ID {nid} and relation {rel}"
                                 .format(nid=start_node_id, rel=rel_type))
-                return False
             else:
                 # Check if there are more elements in the iterator.
                 if len([item for item in self.graph.match(start_node=start_node, rel_type=rel_type)]) > 1:
@@ -186,88 +185,6 @@ class NeoStore:
         else:
             logging.error("Non-existing start node ID: {start_node_id}".format(start_node_id=start_node_id))
             return False
-
-    def get_node(self, *labels, **props):
-        """
-        This method will select a single (or first) node that have labels and properties
-        :param labels:
-        :param props:
-        :return: list of nodes that fulfill the criteria
-        """
-        nodes = self.get_nodes(*labels, **props)
-        if not nodes:
-            logging.error("Expected 1 node for label {l} and props {p}, found none.".format(l=labels, p=props))
-            return False
-        elif len(nodes) > 1:
-            logging.error("Expected 1 node for label {l} and props {p}, found many {m}."
-                          .format(l=labels, p=props, m=len(nodes)))
-        return nodes[0]
-
-    def get_nodes(self, *labels, **props):
-        """
-        This method will select all nodes that have labels and properties
-        :param labels:
-        :param props:
-        :return: list of nodes that fulfill the criteria
-        """
-        nodes = self.selector.select(*labels, **props)
-        logging.warning("In get_nodes, res: {r} looking for {l} and {p}".format(r=list(nodes), l=labels, p=props))
-        return list(nodes)
-
-    def get_organization(self, **org_dict):
-        """
-        This method searches for the organization based on organization name, location and datestamp. If found,
-        then organization attributes will be set using method set_organization. If not found, 'False' will be returned.
-        :param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
-         org_type
-        :return: True if organization is found, False otherwise.
-        """
-        query = """
-        MATCH (day:Day {key: {datestamp}})<-[:On]-(org:Organization {name: {name}}),
-              (org)-[:In]->(loc:Location {city: {location}})
-        RETURN org
-        """
-        cursor = self.graph.run(query, name=org_dict["name"], location=org_dict["location"],
-                                datestamp=org_dict["datestamp"])
-        org_list = nodelist_from_cursor(cursor)
-        if len(org_list) == 0:
-            # No organization found on this date for this location
-            return False
-        elif len(org_list) == 1:
-            # Organization node found, return ID of the organization node
-            org_node = org_list.pop()
-            return org_node["nid"]
-        else:
-            tot_len = len(org_list)
-            logging.error("Expected to find 0 or 1 organization, found {tot_len} (Organization: {name}, "
-                          "Location: {loc}, Date: {date}"
-                          .format(tot_len=tot_len, name=org_dict["name"], loc=org_dict["location"],
-                                  date=org_dict["datestamp"]))
-            return False
-
-    def get_participant_in_race(self, pers_id=None, race_id=None):
-        """
-        This function will for a person get the participant node in a race, or False if the person did not
-        participate in the race according to current information in the database.
-        :param pers_id:
-        :param race_id:
-        :return: participant node, or False
-        """
-        query = """
-            MATCH (pers:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
-            WHERE id(pers)={pers_id} AND id(race)={race_id}
-            RETURN part
-        """.format(pers_id=pers_id, race_id=race_id)
-        res = self.graph.run(query)
-        nodes = nodelist_from_cursor(res)
-        if len(nodes) > 1:
-            logging.error("More than one ({nr}) Participant node for Person {pnid} and Race {rnid}"
-                          .format(pnid=pers_id, rnid=race_id, nr=len(nodes)))
-        elif len(nodes) == 0:
-            logging.debug("No Participant node for Person {pnid} and Race {rnid}"
-                          .format(pnid=pers_id, rnid=race_id))
-            return False
-        return nodes[0]
 
     def get_start_node(self, end_node_id=None, rel_type=None):
         """
@@ -531,31 +448,3 @@ class NeoStore:
         logging.debug("Remove Relation: {q}".format(q=query))
         self.graph.run(query)
         return
-
-
-def nodelist_from_cursor(cursor):
-    """
-    The py2neo Cursor will return a result list that is not necessarily unique. This function gets a cursor from
-    a query where the cypher return argument is a single node. The function will return the list of unique nodes.
-    :param cursor:
-    :return: list of unique nodes, or empty list if there are no nodes.
-    """
-    node_list = set()
-    while cursor.forward():
-        current = cursor.current()
-        (node, ) = current.values()
-        node_list.add(node)
-    return list(node_list)
-
-def validate_node(node, label):
-    """
-    This function will check if a node is of a specific type, so it will check if the node has the label.
-    :param node: Node to check
-    :param label: Label that needs to be in the node.
-    :return: True, if label is in the node. False for all other reasons (e.g. node is not a node.
-    """
-    if type(node) is Node:
-        return node.has_label(label)
-    else:
-        logging.debug("Object not of type Node (type: {t}) while checking for label {l}".format(t=type(node), l=label))
-        return False

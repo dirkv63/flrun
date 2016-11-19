@@ -1,88 +1,82 @@
 import logging
 import sys
-from lib import my_env
-from lib import neostore
-from py2neo import Graph, Node, Relationship
-from py2neo.ext.calendar import GregorianCalendar
+from lib import my_env, neostore
+# from py2neo import Graph, Node, Relationship
+# from py2neo.ext.calendar import GregorianCalendar
 
-cfg = my_env.init_env("flaskrun", __file__)
-ns = neostore.NeoStore(cfg)
-graph = ns._connect2db()
-calendar = GregorianCalendar(graph)
-# watch("py2neo.cypher")
-# Set Node IDs, to improve performance.
-
+# Todo: Get Username / Password from environment settings
+neo4j_params = {
+    'user': "neo4j",
+    'password': "_m8z8IpJUPyR",
+    'db': "stratenloop15.db"
+}
+ns = neostore.NeoStore(**neo4j_params)
 
 
 class Participant:
     def __init__(self, part_id=None, race_id=None, pers_id=None):
-        self.part = None
-        self.part_id = -1
-        self.prev_runner_id = -1
-        self.next_runner_id = -1
-        if part_id:
-            logging.debug("Set Participant with ID: {part_id}".format(part_id=part_id))
-            self.part, self.part_id = self.set(part_id)
-        elif pers_id and race_id:
-            logging.debug("Set Participant from person with ID: {pers_id}".format(pers_id=pers_id))
-            self.part, self.part_id = self.get_part_race(race_id=race_id, pers_id=pers_id)
-
-    @staticmethod
-    def set(part_id):
         """
-        This method will set the Participant Object
-        :param part_id: Node ID of the participant
+        Sets the Participant Object. The participant must exist, so if called with race_id and person_id, then
+        there must be a participant for this. There is no error checking on it.
+        :param part_id:
+        :param race_id:
+        :param pers_id:
         :return:
         """
-        return graph.node(part_id), part_id
+        self.part_node = None
+        self.part_id = -1           # Unique ID (nid) of the Participant node
+        if part_id:
+            logging.debug("Set Participant with ID: {part_id}".format(part_id=part_id))
+            self.part_node = ns.node(part_id)
+        elif pers_id and race_id:
+            self.part_node = ns.get_participant_in_race(pers_id=pers_id, race_id=race_id)
+        self.part_id = self.part_node["nid"]
 
     def get_id(self):
         """
         This method will return the Participant Node ID of this person's participation in the race
-        :return: Participant Node ID
+        :return: Participant Node ID (nid)
         """
         return self.part_id
 
-    def get_part_race(self, race_id=None, pers_id=None):
+    def set_part_race(self, race_id=None, pers_id=None):
         """
-        This method will get the participant from Person ID and Race ID. If the participant exists already, it will
-        be returned. If the participant did not exist already, it will return False.
-        Use the method set_part_race to set a participant in the race.
-        :param race_id: Node ID of the Race
-        :param pers_id: Node ID of the Person
-        :return: Participant Object, created or existing.
-        """
-        query = """
-            MATCH (pers:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
-            WHERE id(pers)={pers_id} AND id(race)={race_id}
-            RETURN part, id(part) as id
-        """.format(pers_id=pers_id, race_id=race_id)
-        res = graph.cypher.execute(query)
-        logging.debug("Res: {res}".format(res=res))
-        if len(res) > 0:
-            self.part, self.part_id = res[0]
-            return self.part, self.part_id
-        else:
-            return False
-
-    def set_part_race(self, race_id=Node, pers_id=None):
-        """
-        This method will set the participant for the race. This can be done only when it is known the condition for the
-        previous and next runner. Otherwise the function 'find_first_participant' will fail.
+        This method will link the person to the race. This is done using an Participant Node. This function will not
+        link the participant to the previous or next participant.
         :param race_id: Node ID of the race.
         :param pers_id: Node ID of the person.
-        :return: Node ID of the participant.
+        :return: Node ID of the participant node.
         """
-        self.part, = graph.create(Node("Participant"))  # Create returns tuple
-        self.part_id = ns.node_id(self.part)
-        race = graph.node(race_id)
-        graph.create(Relationship(self.part, "participates", race))
-        runner = graph.node(pers_id)
-        graph.create(Relationship(runner, "is", self.part))
+        self.part_node = ns.create_node("Participant")
+        self.part_id = self.part_node["nid"]
+        race_node = ns.node(race_id)
+        ns.create_relation(from_node=self.part_node, rel="participates", to_node=race_node)
+        runner_node = ns.node(pers_id)
+        ns.create_relation(from_node=runner_node, rel="is", to_node=self.part_node)
         return self.part_id
 
-    def add(self, pers_id=None, prev_pers_id=-1, race_id=None):
+    @staticmethod
+    def set_relation(next_id=None, prev_id=None):
         """
+        This method will connect the next runner with the previous runner. The next runner is after the previous runner.
+        :param next_id: Node ID of the next runner
+        :param prev_id: Node ID of the previous runner
+        :return:
+        """
+        prev_part_node = ns.node(prev_id)
+        next_part_node = ns.node(next_id)
+        if neostore.validate_node(prev_part_node, "Participant") \
+                and neostore.validate_node(next_part_node, "Participant"):
+            ns.create_relation(from_node=next_part_node, rel="after", to_node=prev_part_node)
+
+    def add(self, pers_id=None, prev_pers_id=None, race_id=None):
+        """
+        This function will add the participant in the sequence of participants. The participant's predecessor is known.
+        Possibilities:
+        1. No predecessor. This is the first participant in this race. Check if there is a successor!
+        2. No successor. This participant is  the last participant in the race.
+        3. A predecessor that was linked to a successor already. This participant will break the existing link and
+           enters between the predecessor and the successor.
         Check if there is a next participant for this participant, so if current runner enters an existing sequence.
         Create the person participant node only when the relations are known. Otherwise the new participant node can
         conflict with the sequence asked for.
@@ -93,8 +87,8 @@ class Participant:
         """
         logging.debug("Add person {id} to previous person {prev_id} for race {race_id}"
                       .format(id=pers_id, prev_id=prev_pers_id, race_id=race_id))
-        if prev_pers_id > 0:
-            logging.debug("Before create object for prev_part")
+        if prev_pers_id:
+            logging.debug("Before create object for previous participant")
             prev_part = Participant(pers_id=prev_pers_id, race_id=race_id)
             prev_part_id = prev_part.get_id()
             logging.debug("Object for prev_part is created")
@@ -109,7 +103,7 @@ class Participant:
                 # Add link between prev_part and part
                 self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
                 # Remove 'after' relation between prev_part and next_part
-                ns.remove_relation(next_part_id, prev_part_id, "after")
+                ns.remove_relation(start_nid=next_part_id, end_nid=prev_part_id, rel_type="after")
             else:
                 # Previous participant but no next participant
                 # Create the participant node for this person
@@ -131,75 +125,27 @@ class Participant:
                 self.set_part_race(race_id=race_id, pers_id=pers_id)
         return
 
-    @staticmethod
-    def validate_node(node):
-        """
-        This method will validate if the provided node is a participant node. A valid participant node is type Node and
-        has label 'participant'.
-        :param node: Node to validate
-        :return: True if this looks to be a valid participant node, false otherwise.
-        """
-        # Todo: validate that the participant node is connected to a person and to a race.
-        if type(node) is Node:
-            if 'Participant' in node.labels:
-                return True
-            else:
-                nid = ns.node_id(node)
-                logging.error("Got node ID {nid}, but this is not of type participant".format(nid=nid))
-        else:
-            logging.error("Expected object type Node, got {obj_type}".format(obj_type=type(node)))
-        return False
-
-    def set_relation(self, next_id=None, prev_id=None):
-        """
-        This method will connect the next runner with the previous runner. The next runner is after the previous runner.
-        :param next_id: Node ID of the next runner
-        :param prev_id: Node ID of the previous runner
-        :return: True if the relation is created, false otherwise.
-        """
-        prev_runner = graph.node(prev_id)
-        next_runner = graph.node(next_id)
-        if self.validate_node(prev_runner) and self.validate_node(next_runner):
-            rel = Relationship(next_runner, "after", prev_runner)
-            graph.create(rel)
-
     def prev_runner(self):
         """
-        This method will get the node ID for this Participant's previous runner. If node ID = -1, then the value has
-        not yet been initialized. If value = -2, then there is no previous runner.
+        This method will get the node ID for this Participant's previous runner.
         The participant must have been created before.
         :return: ID of previous runner participant Node, False if there is no previous runner.
         """
-        if not self.validate_node(self.part):
+        if not neostore.validate_node(self.part_node, "Participant"):
             return False
-        try:
-            rel = next(graph.match(start_node=self.part, rel_type="after"))
-        except StopIteration:
-            # There is no previous runner
-            self.prev_runner_id = -2
-            return False
-        else:
-            self.prev_runner_id = ns.node_id(rel.end_node)
-            return self.prev_runner_id
+        prev_part_id = ns.get_end_node(start_node_id=self.part_id, rel_type="after")
+        return prev_part_id
 
     def next_runner(self):
         """
-        This method will get the node ID for this Participant's next runner. If node ID = -1, then the value has
-        not yet been initialized. If value = -2, then there is no next runner.
+        This method will get the node ID for this Participant's next runner.
         The participant must have been created before.
-        :return: ID of next runner participant Node, False if there is no previous runner.
+        :return: ID of next runner participant Node, False if there is no next runner.
         """
-        if not self.validate_node(self.part):
+        if not neostore.validate_node(self.part_node, "Participant"):
             return False
-        try:
-            rel = next(graph.match(end_node=self.part, rel_type="after"))
-        except StopIteration:
-            # There is no next runner
-            self.next_runner_id = -2
-            return False
-        else:
-            self.next_runner_id = ns.node_id(rel.start_node)
-            return self.next_runner_id
+        next_part_id = ns.get_start_node(end_node_id=self.part_id, rel_type="after")
+        return next_part_id
 
     def remove(self):
         """
@@ -208,13 +154,12 @@ class Participant:
         """
         if self.prev_runner() and self.next_runner():
             # There is a previous and next runner, link them
-            rel = Relationship(graph.node(self.next_runner_id), "after", graph.node(self.prev_runner_id))
-            graph.create(rel)
+            ns.create_relation(from_node=ns.node(self.next_runner()), rel="after", to_node=ns.node(self.prev_runner()))
         # Remove Participant Node
         ns.remove_node_force(self.part_id)
         # Reset Object
         self.part_id = -1
-        self.part = None
+        self.part_node = None
         return
 
 
@@ -229,12 +174,15 @@ class Person:
     def find(self):
         """
         Find ID of the person with name 'name'. Return node ID, else return false.
+        This function must be called from add(), so make it an internal function?
         :return: Node ID, or false if no node could be found.
         """
-        query = "match (p:Person {name: {name}}) return id(p) as id"
-        pers_id_arr = graph.cypher.execute(query, name=self.name)
-        if len(pers_id_arr):
-            self.person_id = pers_id_arr[0].id
+        props = {
+            "name": self.name
+        }
+        person_node = ns.get_node("Person", **props)
+        if person_node:
+            self.person_id = person_node["nid"]
             return True
         else:
             logging.debug("No person found")
@@ -253,8 +201,7 @@ class Person:
             return False
         else:
             # Person not found, register participant.
-            person = Node("Person", **properties)
-            graph.create(person)
+            ns.create_node("Person", **properties)
             # Now call find() again to set ID for the person
             self.find()
             return True
@@ -277,15 +224,8 @@ class Person:
         :return: Person object is set to the participant.
         """
         logging.debug("Person ID: {org_id}".format(org_id=person_id))
-        query = """
-        MATCH (p:Person)
-        WHERE id(p) = {person_id}
-        RETURN p.name as name
-        """.format(person_id=person_id)
-        person_array = graph.cypher.execute(query)
-        this_person = person_array[0]
-        # Todo - expecting one and exactly one row back. Handle errors?
-        self.name = this_person.name
+        person_node = ns.node(person_id)
+        self.name = person_node["name"]
         self.person_id = person_id
         return self.person_id, self.name
 
@@ -322,27 +262,12 @@ class Organization:
          org_type
         :return: True if organization is found, False otherwise.
         """
-        query = """
-        MATCH (day:Day {key: {datestamp}})<-[:On]-(org:Organization {name: {name}}),
-              (org)-[:In]->(loc:Location {city: {location}})
-        RETURN id(org) as org_id
-        """
-        org_id_arr = graph.cypher.execute(query, name=org_dict["name"], location=org_dict["location"],
-                                          datestamp=org_dict["datestamp"])
-        if len(org_id_arr) == 0:
-            # No organization found on this date for this location
-            return False
-        elif len(org_id_arr) == 1:
-            # Organization ID found, remember organization attributes
-            self.org_id = org_id_arr[0].org_id
+        org_id = ns.get_organization(**org_dict)
+        if org_id:
+            self.org_id = org_id
             self.set(self.org_id)
-            return self.org_id
+            return True
         else:
-            tot_len = len(org_id_arr)
-            logging.error("Expected to find 0 or 1 organization, found {tot_len} (Organization: {name}, "
-                          "Location: {loc}, Date: {date}"
-                          .format(tot_len=tot_len, name=org_dict["name"], loc=org_dict["location"],
-                                  date=org_dict["datestamp"]))
             return False
 
     def add(self, **org_dict):
@@ -363,7 +288,7 @@ class Organization:
             return False
         else:
             # Organization on Location and datestamp does not yet exist, register the node.
-            self.org_node = Node("Organization", name=self.org["name"])
+            self.org_node = ns.create_node("Organization", name=self.org["name"])
             # graph.create(self.org_node)  # Node will be created on first Relation creation.
             # Organization node known, now I can link it with the Location.
             self.set_location(self.org["location"])
@@ -371,7 +296,7 @@ class Organization:
             self.set_date(self.org["datestamp"])
             # Set Organization Type
             org_type_node = get_org_type_node(org_type)
-            graph.create(Relationship(self.org_node, "type", org_type_node))
+            ns.create_relation(from_node=self.org_node, rel="type", to_node=org_type_node)
             # Set organization parameters by finding the created organization
             # self.find(name, location, datestamp)
             return True
@@ -427,7 +352,7 @@ class Organization:
                                   .format(od=type(self.org["datestamp"]), nd=type(properties["datestamp"])))
                     # Get Node for current day
                     curr_ds = self.org["datestamp"]
-                    curr_date_node = calendar.date(curr_ds.year, curr_ds.month, curr_ds.day).day
+                    curr_date_node = ns.date_node(curr_ds)
                     # First create link to new date
                     self.set_date(properties["datestamp"])
                     # Then remove link from current date
@@ -552,7 +477,7 @@ class Organization:
         :return:
         """
         loc_node = Location(loc).get_node()   # Get Location Node
-        ns.create_relation(left_node=self.org_node, right_node=loc_node, rel="In")
+        ns.create_relation(from_node=self.org_node, to_node=loc_node, rel="In")
         return
 
     def set_date(self, ds=None):
@@ -598,7 +523,7 @@ class Organization:
         else:
             logging.error("Unrecognized New Organization Type: {org_type}".format(org_type=new_org_type))
             return False
-        ns.create_relation(left_node=self.org_node, right_node=org_type_node, rel="type")
+        ns.create_relation(from_node=self.org_node, to_node=org_type_node, rel="type")
         # Remove curr_org_type for Organization
         if curr_org_type:
             if curr_org_type == 1:
@@ -1099,43 +1024,6 @@ def next_participant(race_id):
     return next_participants
 
 
-def init_graph(config):
-    """
-    This method will initialize the graph. It will set indeces and create nodes required for the application
-    (on condition that the nodes do not exist already).
-    :param config: Config object
-    :return:
-    """
-    stmt = "CREATE CONSTRAINT ON (n:{0}) ASSERT n.{1} IS UNIQUE"
-    graph.cypher.execute(stmt.format('Location', 'city'))
-    graph.cypher.execute(stmt.format('Person', 'name'))
-    graph.cypher.execute(stmt.format('RaceType', 'name'))
-    graph.cypher.execute(stmt.format('OrgType', 'name'))
-
-    # RaceType
-    hoofdwedstrijd = graph.merge_one("RaceType", "name", "Hoofdwedstrijd")
-    bijwedstrijd = graph.merge_one("RaceType", "name", "Bijwedstrijd")
-    deelname = graph.merge_one("RaceType", "name", "Deelname")
-    hoofdwedstrijd['beschrijving'] = config['RaceType']['hoofdwedstrijd']
-    bijwedstrijd['beschrijving'] = config['RaceType']['bijwedstrijd']
-    deelname['beschrijving'] = config['RaceType']['deelname']
-    # Weight factor is used to sort the types in selection lists.
-    hoofdwedstrijd['weight'] = 10
-    bijwedstrijd['weight'] = 20
-    deelname['weight'] = 100
-    hoofdwedstrijd.push()
-    bijwedstrijd.push()
-    deelname.push()
-    # OrgType
-    wedstrijd = graph.merge_one("OrgType", "name", "Wedstrijd")
-    org_deelname = graph.merge_one("OrgType", "name", "Deelname")
-    wedstrijd['beschrijving'] = config['OrgType']['wedstrijd']
-    org_deelname['beschrijving'] = config['OrgType']['deelname']
-    wedstrijd.push()
-    org_deelname.push()
-    return
-
-
 def racetype_list():
     """
     This method will get all the race types. It will return them as a list of tuples with race type ID and race type
@@ -1160,5 +1048,5 @@ def set_race_type(race_id=None, race_type_node=None):
     curr_race_type_id = ns.get_end_node(race_id, "type")
     if curr_race_type_id:
         ns.remove_relation(race_id, curr_race_type_id, "type")
-    ns.create_relation(left_node=race_node, right_node=race_type_node, rel="type")
+    ns.create_relation(from_node=race_node, to_node=race_type_node, rel="type")
     return

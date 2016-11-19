@@ -98,3 +98,10 @@ node.Location {
   caption: '{city}';
 }
 
+node.Test {
+  color: #FB95AF;
+  border-color: #E0849B;
+  text-color-internal: #FFFFFF;
+  caption: '{nid}';
+}
+

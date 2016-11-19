@@ -2,16 +2,14 @@ import competition.models_graph as mg
 # import logging
 # import datetime
 from lib import my_env
-from lib import neostore
+# from lib import neostore
 from flask import render_template, flash, current_app, redirect, url_for, request
 from flask_login import login_required, login_user, logout_user
 from .forms import *
 from . import main
 from ..models_sql import User
 
-
-cfg = my_env.init_env("flaskrun", __file__)
-ns = neostore.NeoStore(cfg)
+ns = current_app.config['ns']
 
 
 @main.route('/login', methods=['GET', 'POST'])

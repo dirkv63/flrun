@@ -1,14 +1,18 @@
 import logging
-import os
+# import os
+from config import config
 from flask import Flask
 from flask_bootstrap import Bootstrap
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
+from lib import my_env
+from lib import neostore
 
 bootstrap = Bootstrap()
 db = SQLAlchemy()
 lm = LoginManager()
 lm.login_view = 'main.login'
+ns = ""
 
 
 def create_app(config_name):
@@ -20,14 +24,30 @@ def create_app(config_name):
     app = Flask(__name__)
 
     # import configuration
-    cfg = os.path.join(os.getcwd(), 'config', config_name + '.py')
-    logging.debug("Config file: {cfg}".format(cfg=cfg))
-    app.config.from_pyfile(cfg)
+    app.config.from_object(config[config_name])
+    config[config_name].init_app(app)
+
+    # Configure Logger
+    my_env.init_loghandler(__name__, app.config.get('LOGDIR'), app.config.get('LOGLEVEL'))
+    app.config['n4j_hdl'] = neostore.NeoStore(**neo4j_params)
 
     # initialize extensions
     bootstrap.init_app(app)
     db.init_app(app)
     lm.init_app(app)
+    # Initialize Neostore object
+    ns = neostore.NeoStore(**neo4j_params)
+    app.config['ns'] = ns
+    """
+    node_params = {
+        'wedstrijd': app.config.get('WEDSTRIJD'),
+        'o_deelname': app.config.get('O_DEELNAME'),
+        'hoofdwedstrijd': app.config.get('HOOFDWEDSTRIJD'),
+        'bijwedstrijd': app.config.get('BIJWEDSTRIJD'),
+        'deelname': app.config.get('DEELNAME')
+    }
+    ns.init_graph(**node_params)
+    """
 
     # import blueprints
     from .main import main as main_blueprint

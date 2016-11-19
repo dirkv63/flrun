@@ -4,11 +4,14 @@ setup and initializing the config file.
 Also other utilities find their home here.
 """
 
+import configparser
 import datetime
 import logging
 import logging.handlers
 import os
 import platform
+import re
+import sys
 
 
 def get_modulename(scriptname):
@@ -23,33 +26,28 @@ def get_modulename(scriptname):
     return module
 
 
-def init_loghandler(scriptname, logdir, loglevel):
+def init_loghandler(config, modulename):
     """
     This function initializes the loghandler. Logfilename consists of calling module name + computername.
     Logfile directory is read from the project .ini file.
     Format of the logmessage is specified in basicConfig function.
     This is for Log Handler configuration. If basic log file configuration is required, then use init_logfile.
-    :param scriptname: Name of the calling module.
-    :param logdir: Directory of the logfile.
-    :param loglevel: The loglevel for logging.
-    :return: logging handler
+    :param config: Reference to the configuration ini file. Directory for logfile should be
+    in section Main entry logdir.
+    :param modulename: The name of the module. Each module will create it's own logfile.
+    :return: Log Handler
     """
-    modulename = get_modulename(scriptname)
-    loglevel = loglevel.upper()
+    logdir = config['Main']['logdir']
     # Extract Computername
     computername = platform.node()
     # Define logfileName
     logfile = logdir + "/" + modulename + "_" + computername + ".log"
-    # Set loglevel for bolt driver to warning
-    logging.getLogger("neo4j.bolt").setLevel(logging.WARNING)
-    # logging.getLogger("http").setLevel(logging.WARNING)
     # Configure the root logger
     logger = logging.getLogger()
-    level = logging.getLevelName(loglevel)
-    logger.setLevel(level)
+    logger.setLevel(logging.DEBUG)
     # Create Console Handler
     ch = logging.StreamHandler()
-    ch.setLevel(level)
+    ch.setLevel(logging.INFO)
     # Create Rotating File Handler
     # Get logfiles of 1M
     maxbytes = 1024 * 1024
@@ -70,11 +68,26 @@ def init_loghandler(scriptname, logdir, loglevel):
     return logger
 
 
-def datestr2date(datestr):
+def get_inifile(projectname, scriptname):
     """
-    This method will convert datestring to date type. Datestring must be of the form YYYY-MM-DD
-    :param datestr: Datestring to be converted
-    :return: Date in datetime object type, or False if not successful
+    Read Project configuration ini file in subdirectory properties.
+    :param projectname: Name of the project.
+    :param scriptname: Name of the calling application. This is used to calculate the config file path.
+    :return: Object reference to the inifile.
     """
-    date_obj = datetime.datetime.strptime(datestr, '%Y-%m-%d').date()
-    return date_obj
+    # Use Project Name as ini file.
+    # os.path.realpath will ensure full path name
+    # os.path.split will split in directory and basename
+    (filepath, filename) = os.path.split(os.path.realpath(scriptname))
+    # Set filename according to your system specs (Windows, Linux, ...)
+    configfile = os.path.join(filepath, "properties", projectname + ".ini")
+    ini_config = configparser.ConfigParser()
+    try:
+        ini_config.read_file(open(configfile))
+    except:
+        e = sys.exc_info()[1]
+        ec = sys.exc_info()[0]
+        log_msg = "Read Inifile not successful: {0} ({1}) - filepath: {2}"
+        print(log_msg.format(e, ec, filepath))
+        sys.exit(1)
+    return ini_config
