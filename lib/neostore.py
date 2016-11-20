@@ -5,6 +5,7 @@ This class consolidates functions related to the neo4J datastore.
 import logging
 import sys
 import uuid
+from pandas import DataFrame
 from py2neo import Graph, Node, Relationship, NodeSelector
 from py2neo.database import DBMS
 from py2neo.ext.calendar import GregorianCalendar
@@ -24,7 +25,8 @@ class NeoStore:
         self.selector = NodeSelector(self.graph)
         return
 
-    def _connect2db(self, **n4j_params):
+    @staticmethod
+    def _connect2db(**n4j_params):
         """
         Internal method to create a database connection. This method is called during object initialization.
         :return: Database handle and cursor for the database.
@@ -182,7 +184,10 @@ class NeoStore:
             # Then get relation to end node.
             node_list = [self.node_id(rel.end_node())
                          for rel in self.graph.match(start_node=start_node, rel_type=rel_type)]
-            return node_list
+            # Convert to set to remove duplicates
+            node_set = set(node_list)
+            # Then return the list
+            return list(node_set)
         else:
             logging.error("Non-existing start node ID: {start_node_id}".format(start_node_id=start_node_id))
             return False
@@ -211,7 +216,7 @@ class NeoStore:
         :return: list of nodes that fulfill the criteria
         """
         nodes = self.selector.select(*labels, **props)
-        logging.warning("In get_nodes, res: {r} looking for {l} and {p}".format(r=list(nodes), l=labels, p=props))
+        logging.warning("In get_nodes, looking for {l} and {p} - res: {r} ".format(r=list(nodes), l=labels, p=props))
         return list(nodes)
 
     def get_organization(self, **org_dict):
@@ -245,6 +250,28 @@ class NeoStore:
                                   date=org_dict["datestamp"]))
             return False
 
+    def get_organization_from_id(self, org_id):
+        """
+        This method will get an organization ID and search for the organization details.
+        :param org_id: nid of the organization Node.
+        :return: Dictionary with organization details: date, day, month, year, org (organization label) and city
+        """
+        query = """
+            MATCH (date:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
+            WHERE org.nid = '{org_id}'
+            RETURN date.day as day, date.month as month, date.year as year, date.key as date,
+                   org.name as org, loc.city as city
+        """.format(org_id=org_id)
+        org_array = DataFrame(self.graph.run(query).data())
+        df_length = org_array.index
+        if len(df_length) == 0:
+            logging.error("No organization found for nid {nid}".format(nid=org_id))
+            return False
+        elif len(org_array) > 1:
+            logging.error("Multiple organizations found for nid {nid}, using first one.".format(nid=org_id))
+        org_row = org_array.iloc[0].to_dict()
+        return org_row
+
     def get_participant_in_race(self, pers_id=None, race_id=None):
         """
         This function will for a person get the participant node in a race, or False if the person did not
@@ -255,7 +282,7 @@ class NeoStore:
         """
         query = """
             MATCH (pers:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
-            WHERE id(pers)={pers_id} AND id(race)={race_id}
+            WHERE pers.nid='{pers_id}' AND race.nid='{race_id}'
             RETURN part
         """.format(pers_id=pers_id, race_id=race_id)
         res = self.graph.run(query)
@@ -268,6 +295,27 @@ class NeoStore:
                           .format(pnid=pers_id, rnid=race_id))
             return False
         return nodes[0]
+
+    def get_race_in_org(self, org_id, racetype_id, name):
+        """
+        This function will find a race of a specific type in an organization. It will return True if one or more
+        races have been found, False otherwise.
+        :param org_id: nid of the Organization node.
+        :param racetype_id: nid of the RaceType node.
+        :param name: label (name) of the race (e.g. 10 km).
+        :return: Number of races found. True (1), if race has been found for this organization. False (0) otherwise.
+        """
+        query = """
+        MATCH (org:Organization)-->(race:Race)-->(racetype:RaceType)
+        WHERE org.nid='{org_id}'
+          AND racetype.nid='{racetype}'
+          AND race.name='{name}'
+        RETURN race
+        """.format(org_id=org_id, racetype=racetype_id, name=name)
+        logging.warning("Query: {query}".format(query=query))
+        race_cursor = self.graph.run(query)
+        race = nodelist_from_cursor(race_cursor)
+        return len(race)
 
     def get_start_node(self, end_node_id=None, rel_type=None):
         """
@@ -323,6 +371,26 @@ class NeoStore:
             logging.error("Non-existing end node ID: {end_node_id}".format(end_node_id=end_node_id))
             return False
 
+    def get_wedstrijd_type(self, org_id, racetype):
+        """
+        This query will find if organization has races of type racetype. It will return the number of races (True)
+        in case that there are races of type racetype, False otherwise
+        :param org_id: NID of the organization
+        :param racetype:
+        :return: Number of races for this type (True), or False if no races.
+        """
+        query = """
+        MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(rt:RaceType)
+        WHERE org.nid='{org_id}'
+          AND rt.name='{racetype}'
+        RETURN org, race, rt
+        """.format(org_id=org_id, racetype=racetype)
+        res = DataFrame(self.graph.run(query).data())
+        if res.empty:
+            return False
+        else:
+            return len(res.index)
+
     def init_graph(self, **node_params):
         """
         This method will initialize the graph. It will set indeces and create nodes required for the application
@@ -366,15 +434,6 @@ class NeoStore:
         consequence, it is not possible to use the node(nid).
         :param nid: ID of the node to be found.
         :return: Node, or False (None) in case the node could not be found.
-        """
-        """
-        try:
-            node_obj = self.graph.node(nid)
-        except IndexError:
-            logging.error("Non-existing node ID: {nid}".format(nid=nid))
-            return False
-        else:
-            return node_obj
         """
         selected = self.selector.select(nid=nid)
         node = selected.first()
@@ -546,6 +605,7 @@ def nodelist_from_cursor(cursor):
         (node, ) = current.values()
         node_list.add(node)
     return list(node_list)
+
 
 def validate_node(node, label):
     """

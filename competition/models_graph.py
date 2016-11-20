@@ -1,8 +1,5 @@
 import logging
-import sys
 from lib import my_env, neostore
-# from py2neo import Graph, Node, Relationship
-# from py2neo.ext.calendar import GregorianCalendar
 
 # Todo: Get Username / Password from environment settings
 neo4j_params = {
@@ -309,7 +306,7 @@ class Organization:
         Edit function needs to redirect relations, so it has begin and end nodes. This function can then remove single
         date nodes and location nodes if required. The Organization delete function will force to remove an organization
         node without a need to find the date and location first. Therefore the delete function requires a more generic
-        date and location removal, where check on all orphans is done.
+        date and location removal, where a check on all orphans is done.
         :param properties: New set of properties for the node. These properties are: name, location, datestamp and
          org_type
         :return: True if the organization has been updated, False if it existed already.
@@ -344,7 +341,7 @@ class Organization:
                     # First create link to new location
                     self.set_location(properties["location"])
                     # Then remove link to current location
-                    ns.remove_relation(self.org_id, curr_loc_id, "In")
+                    ns.remove_relation(start_nid=self.org_id, end_nid=curr_loc_id, rel_type="In")
                     # Finally check if current location is still required. Remove if there are no more links.
                     ns.remove_node(curr_loc_id)
                 if 'datestamp' in changed_keys:
@@ -356,7 +353,7 @@ class Organization:
                     # First create link to new date
                     self.set_date(properties["datestamp"])
                     # Then remove link from current date
-                    ns.remove_relation(self.org_id, ns.node_id(curr_date_node), "On")
+                    ns.remove_relation(start_nid=self.org_id, end_nid=ns.node_id(curr_date_node), rel_type="On")
                     # Finally check if date (day, month, year) can be removed.
                     ns.remove_date(curr_ds)
         return True
@@ -370,28 +367,20 @@ class Organization:
         :return:
         """
         logging.debug("Org ID: {org_id}".format(org_id=org_id))
-        query = """
-            MATCH (date:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location)
-            WHERE id(org) = {org_id}
-            RETURN date.day as day, date.month as month, date.year as year, date.key as date,
-                   org.name as org, loc.city as city, org as org_node
-        """.format(org_id=org_id)
-        org_array = graph.cypher.execute(query)
-        this_org = org_array[0]
-        # Todo - expecting one and exactly one row back. Handle errors?
-        self.label = "{org_name} ({city}, {day:02d}-{month:02d}-{year})".format(org_name=this_org.org,
-                                                                                city=this_org.city,
-                                                                                day=this_org.day,
-                                                                                month=this_org.month,
-                                                                                year=this_org.year)
+        this_org = ns.get_organization_from_id(org_id)
+        self.label = "{org_name} ({city}, {day:02d}-{month:02d}-{year})".format(org_name=this_org["org"],
+                                                                                city=this_org["city"],
+                                                                                day=this_org["day"],
+                                                                                month=this_org["month"],
+                                                                                year=this_org["year"])
         self.org = dict(
-            name=this_org.org,
-            location=this_org.city,
-            datestamp=my_env.datestr2date(this_org.date)
+            name=this_org["org"],
+            location=this_org["city"],
+            datestamp=my_env.datestr2date(this_org["date"])
         )
-        self.name = this_org.org
+        self.name = this_org["org"]
         self.org_id = org_id
-        self.org_node = this_org.org_node
+        self.org_node = ns.node(org_id)
         return True
 
     def get_label(self):
@@ -425,9 +414,10 @@ class Organization:
     def get_org_type(self):
         """
         This method will return the organization type as a Number. If not available, then Organization type is
-        Wedstrijd (1).
+        Wedstrijd (1). Not sure what the purpose of this method is.
         :return: Organization Type. 1: Wedstrijd - 2: Deelname
         """
+        # Todo: Review usage of this method.
         org_type = {
             "Wedstrijd": 1,
             "Deelname": 2
@@ -446,13 +436,8 @@ class Organization:
         :param racetype: Race Type (Hoofdwedstrijd, Bijwedstrijd, Deelname)
         :return: Number of races for this type, False if there are no races.
         """
-        qm = "MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(rt:RaceType {name: {racetype}})"
-        qw = "WHERE id(org)={org_id} ".format(org_id=self.org_id)
-        qr = "RETURN org, race, rt"
-        query = "{qm} {qw} {qr}".format(qm=qm, qw=qw, qr=qr)
-        logging.debug("Look, my query: {query}".format(query=query))
-        res = graph.cypher.execute(query, racetype=racetype)
-        if len(res):
+        res = ns.get_wedstrijd_type(self.org_id, racetype)
+        if res:
             logging.debug("Organization has {len} races for type {racetype}".format(len=len(res), racetype=racetype))
             return len(res)
         else:
@@ -487,8 +472,8 @@ class Organization:
         :param ds: Datestamp
         :return:
         """
-        date_node = calendar.date(ds.year, ds.month, ds.day).day   # Get Date (day) node
-        graph.create(Relationship(self.org_node, "On", date_node))
+        date_node = ns.date_node(ds)   # Get Date (day) node
+        ns.create_relation(from_node=self.org_node, rel="On", to_node=date_node)
         return
 
     def set_org_type(self, new_org_type, curr_org_type=None):
@@ -505,14 +490,18 @@ class Organization:
         logging.debug("In set_org_type, change from current {cot} to new {newot}"
                       .format(cot=curr_org_type, newot=new_org_type))
         # First get node and node_id for Organization Type Wedstrijd and Organization Type Deelname
-        org_type_wedstrijd = graph.merge_one("OrgType", "name", "Wedstrijd")
-        org_type_wedstrijd_id = ns.node_id(org_type_wedstrijd)
-        org_type_deelname = graph.merge_one("OrgType", "name", "Deelname")
-        org_type_deelname_id = ns.node_id(org_type_deelname)
-        race_type_wedstrijd = graph.merge_one("RaceType", "name", "Bijwedstrijd")
-        # race_type_wedstrijd_id = pu.node_id(race_type_wedstrijd)
-        race_type_deelname = graph.merge_one("RaceType", "name", "Deelname")
-        # race_type_deelname_id = pu.node_id(race_type_deelname)
+        prop_type = {
+            "name": "Wedstrijd"
+        }
+        org_type_wedstrijd = ns.get_node("OrgType", **prop_type)
+        org_type_wedstrijd_id = org_type_wedstrijd["nid"]
+        prop_type["name"] = "Deelname"
+        org_type_deelname = ns.get_node("OrgType", **prop_type)
+        org_type_deelname_id = org_type_deelname["nid"]
+        prop_type["name"] = "Bijwedstrijd"
+        race_type_wedstrijd = ns.get_node("RaceType", **prop_type)
+        prop_type["name"] = "Deelname"
+        race_type_deelname = ns.get_node("RaceType", **prop_type)
         # Set new_org_type for Organization
         if new_org_type == 1:
             org_type_node = org_type_wedstrijd
@@ -571,31 +560,19 @@ class Race:
         This method searches for the organization based on organization name, location and datestamp. If found,
         then organization attributes will be set using method set_organization. If not found, 'False' will be returned.
         :param racetype_id: Type of the Race
-        :return: True if the race is found for this organization, False otherwise.
+        :return: True if a race is found for this organization and racetype, False otherwise.
         """
-        match = "MATCH (org:Organization)-->(race:Race {name: {name}})-->(racetype:RaceType) "
-        where = "WHERE id(org)={org_id} AND id(racetype)={racetype} ".format(org_id=self.org_id, racetype=racetype_id)
-        ret = "RETURN id(race) as race"
-        query = match + where + ret
-        logging.debug("Query: {query}".format(query=query))
-        race_id_arr = graph.cypher.execute(query, name=self.name)
-        if len(race_id_arr) == 0:
-            # No organization found on this date for this location
-            return False
-        elif len(race_id_arr) == 1:
-            # Organization ID found, remember organization attributes
-            pass
+        if ns.get_race_in_org(org_id=self.org_id, racetype_id=racetype_id, name=self.name):
             return True
         else:
-            # Todo - Error handling is required to handle more than one array returned.
-            sys.exit()
+            return False
 
     def add(self, name, racetype=None):
         """
         This method will check if the race is registered for this organization. If not, the race graph object
         (exists of race name with link to race type and the organization) will be created.
         :param name: Name of the race
-        :param racetype: 1 > Hoofdwedstrijd. If False: then calculate (bijwedstrijd or Deelname).
+        :param racetype: 1 then Hoofdwedstrijd. If False: then calculate (bijwedstrijd or Deelname).
         :return: True if the race has been registered, False if it existed already.
         """
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
@@ -610,17 +587,19 @@ class Race:
         else:
             racetype = "Deelname"
         racetype_node = get_race_type_node(racetype)
-        racetype_id = ns.node_id(racetype_node)
+        racetype_id = racetype_node["nid"]
         if self.find(racetype_id):
             # No need to register (Race exist already).
             return False
         else:
             # Race for Organization does not yet exist, register it.
-            race = Node("Race", name=name)
-            org_node = graph.node(self.org_id)
-            graph.create(race)
-            graph.create(Relationship(org_node, "has", race))
-            set_race_type(race_id=ns.node_id(race), race_type_node=racetype_node)
+            props = {
+                "name": name
+            }
+            race_node = ns.create_node("Race", **props)
+            org_node = ns.node(self.org_id)
+            ns.create_relation(from_node=org_node, rel="has", to_node=race_node)
+            set_race_type(race_id=ns.node_id(race_node), race_type_node=racetype_node)
             # Set organization paarameters by finding the created organization
             # self.find(name, location, datestamp)
             return True
