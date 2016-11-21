@@ -9,8 +9,6 @@ from .forms import *
 from . import main
 from ..models_sql import User
 
-ns = current_app.config['ns']
-
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -110,7 +108,7 @@ def person_summary(pers_id):
     races = mg.races4person(pers_id)
     # Don't count on len(races), since this is this competition races. Remove person only if not used across all
     # competitions.
-    if ns.relations(pers_id):
+    if mg.relations(pers_id):
         conns = 1
     else:
         conns = 0
@@ -131,10 +129,10 @@ def person_delete(pers_id):
     part = mg.Person()
     part.set(pers_id)
     # part_name = part.get_name()
-    if ns.relations(pers_id):
+    if mg.relations(pers_id):
         current_app.logger.warning("Request to delete id {pers_id} but relations found".format(pers_id=pers_id))
     else:
-        ns.remove_node(pers_id)
+        mg.remove_node(pers_id)
     return redirect(url_for('main.person_list'))
 
 

@@ -216,7 +216,7 @@ class NeoStore:
         :return: list of nodes that fulfill the criteria
         """
         nodes = self.selector.select(*labels, **props)
-        logging.warning("In get_nodes, looking for {l} and {p} - res: {r} ".format(r=list(nodes), l=labels, p=props))
+        logging.debug("In get_nodes, looking for {l} and {p} - res: {r} ".format(r=list(nodes), l=labels, p=props))
         return list(nodes)
 
     def get_organization(self, **org_dict):
@@ -272,6 +272,21 @@ class NeoStore:
         org_row = org_array.iloc[0].to_dict()
         return org_row
 
+    def get_organization_list(self):
+        """
+        This method will get a list of all organizations. Each item in the list is a dictionary with fields date,
+        organization, city, id (for organization nid) and type.
+        :return:
+        """
+        query = """
+            MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location),
+                  (org)-[:type]->(ot:OrgType)
+            RETURN day.key as date, org.name as organization, loc.city as city, org.nid as id, ot.name as type
+            ORDER BY day.key ASC
+        """
+        res = self.graph.run(query).data()
+        return res
+
     def get_participant_in_race(self, pers_id=None, race_id=None):
         """
         This function will for a person get the participant node in a race, or False if the person did not
@@ -296,6 +311,26 @@ class NeoStore:
             return False
         return nodes[0]
 
+    def get_participant_seq_list(self, race_id):
+        """
+        This method will return a dictionary of participants in sequence of arrival for a particular race.
+        :param race_id:
+        :return:
+        """
+        query = """
+            MATCH race_ptn = (race)<-[:participates]-(participant),
+                  participants = (participant)<-[:after*0..]-()
+            WHERE race.nid = '{race_id}'
+            WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
+            WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
+            UNWIND result_coll as result
+            RETURN nodes(result)
+        """.format(race_id=race_id)
+        # Get the result of the query in a recordlist
+        cursor = self.graph.run(query)
+        rec = cursor.next()
+        return rec["nodes(result)"]
+
     def get_race_in_org(self, org_id, racetype_id, name):
         """
         This function will find a race of a specific type in an organization. It will return True if one or more
@@ -312,10 +347,64 @@ class NeoStore:
           AND race.name='{name}'
         RETURN race
         """.format(org_id=org_id, racetype=racetype_id, name=name)
-        logging.warning("Query: {query}".format(query=query))
+        logging.debug("Query: {query}".format(query=query))
         race_cursor = self.graph.run(query)
         race = nodelist_from_cursor(race_cursor)
         return len(race)
+
+    def get_race_label(self, race_id):
+        """
+        This method will return the dictionary that allows to create the race label.
+        :param race_id: nid of the race.
+        :return: Dictionary with the Race information. Fields: race, org, city, day, month, year.
+        """
+        query = """
+            MATCH (race:Race)<-[:has]-(org)-[:On]->(date),
+                  (org)-[:In]->(loc)
+            WHERE race.nid='{race_id}'
+            RETURN race.name as race, org.name as org, loc.city as city, date.day as day,
+                   date.month as month, date.year as year
+        """.format(race_id=race_id)
+        recordlist = self.graph.run(query).data()
+        if len(recordlist) == 0:
+            logging.error("Expected to find a Race Label, but no match... ({nid})".format(nid=race_id))
+            return False
+        elif len(recordlist) > 1:
+            logging.error("Found multiple races for Race ID {nid}".format(nid=race_id))
+        return recordlist[0]
+
+    def get_race_list(self, org_id):
+        """
+        This function will get an organization nid and return the Races associated with the Organization.
+        The races will be returned as a list of dictionaries with fields race (racename), type (racetype) and nid of the
+        race.
+        :param org_id: nid of the Organization.
+        :return:
+        """
+        query = """
+            MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(racetype:RaceType)
+            WHERE org.nid = '{org_id}'
+            RETURN race.name as race, racetype.name as type, race.nid as race_id
+            ORDER BY racetype.weight, race.name
+        """.format(org_id=org_id)
+        res = self.graph.run(query).data()
+        return res
+
+    def get_race4person(self, person_id):
+        """
+        This method will get a list of race_ids per person, sorted on date.
+        :param person_id:
+        :return: list of Race IDs (nids). Each nid can be used to get the Race Label.
+        """
+        query = """
+            MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
+                  <-[:has]-(org:Organization)-[:On]->(day:Day)
+            WHERE person.nid='{pers_id}'
+            RETURN race.nid as race_id
+            ORDER BY day.key DESC
+        """.format(pers_id=person_id)
+        res = self.graph.run(query).data()
+        return res
 
     def get_start_node(self, end_node_id=None, rel_type=None):
         """

@@ -628,7 +628,7 @@ class Race:
         self.race_id = nid
         race_node = ns.node(self.race_id)
         logging.debug("Race node set")
-        self.name = race_node.properties['name']
+        self.name = race_node['name']
         logging.debug("Name: {name}".format(name=self.name))
         self.org_id = self.get_org_id()
         self.label = self.set_label()
@@ -639,15 +639,10 @@ class Race:
         This method set and return the org_id for a race node_id. A valid race_id must be set.
         :return: org_id
         """
-        query = """
-        MATCH (org:Organization)-[:has]->(race:Race)
-        WHERE id(race)={race_id}
-        return id(org) as id
-        """.format(race_id=self.race_id)
-        org_id_arr = graph.cypher.execute(query)
+        org_node = ns.get_start_node(end_node_id=self.race_id, rel_type="has")
         logging.debug("ID of the Org for Race ID {race_id} is {org_id}"
-                      .format(org_id=org_id_arr[0], race_id=self.race_id))
-        return org_id_arr[0].id
+                      .format(org_id=org_node["nid"], race_id=self.race_id))
+        return org_node["nid"]
 
     def get_name(self):
         """
@@ -663,8 +658,8 @@ class Race:
         :return:
         """
         logging.debug("Trying to get Organization label for org ID {org_id}".format(org_id=self.org_id))
-        org_node = graph.node(self.org_id)
-        org_name = org_node.properties["name"]
+        org_node = ns.node(self.org_id)
+        org_name = org_node["name"]
         self.label = "{race_name} ({org_name})".format(race_name=self.name, org_name=org_name)
         return self.label
 
@@ -674,13 +669,19 @@ class Location:
         self.loc = loc
 
     def find(self):
-        loc = graph.find_one("Location", "city", self.loc)
+        """
+        Find the location node
+        :return:
+        """
+        props = {
+            "city": self.loc
+        }
+        loc = ns.get_node("Location", **props)
         return loc
 
     def add(self):
         if not self.find():
-            name = Node("Location", city=self.loc)
-            graph.create(name)
+            ns.create_node("Location", city=self.loc)
             return True
         else:
             return False
@@ -697,13 +698,12 @@ class Location:
 
 
 def organization_list():
-    query = """
-    MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location),
-          (org)-[:type]->(ot:OrgType)
-    RETURN day.key as date, org.name as organization, loc.city as city, id(org) as id, ot.name as type
-    ORDER BY day.key ASC
     """
-    return graph.cypher.execute(query)
+    This function will return a list of organizations. Each item in the list is a dictionary with fields date,
+    organization, city, id (for organization nid) and type.
+    :return:
+    """
+    return ns.get_organization_list()
 
 
 def organization_delete(org_id=None):
@@ -744,13 +744,9 @@ def get_org_type(org_id):
     :param org_id: Node ID of the Organization.
     :return: Type of the Organization: Wedstrijd or Deelname
     """
-    query = """
-        MATCH (org:Organization)-[:type]->(ot:OrgType)
-        WHERE id(org)={org_id}
-        RETURN ot.name as name
-    """.format(org_id=org_id)
-    res = graph.cypher.execute(query)
-    return res[0][0]
+    org_type_id = ns.get_end_node(start_node_id=org_id, rel_type="type")
+    org_type_node = ns.node(org_type_id)
+    return org_type_node["name"]
 
 
 def get_org_type_node(org_type_id):
@@ -763,9 +759,10 @@ def get_org_type_node(org_type_id):
         name = "Wedstrijd"
     else:
         name = "Deelname"
-    query = "MATCH (n:OrgType {name: {name}}) return n"
-    res = graph.cypher.execute(query, name=name)
-    return res[0][0]
+    props = {
+        "name": name
+    }
+    return ns.get_node("OrgType", **props)
 
 
 def get_race_type_node(racetype):
@@ -776,7 +773,10 @@ def get_race_type_node(racetype):
     """
     if racetype in ["Hoofdwedstrijd", "Bijwedstrijd", "Deelname"]:
         # RaceType defined, so it must be Hoofdwedstrijd.
-        racetype_node = graph.merge_one("RaceType", "name", racetype)
+        props = {
+            "name": racetype
+        }
+        racetype_node = ns.get_node("RaceType", **props)
         return racetype_node
     else:
         logging.error("RaceType unknown: {racetype}.".format(racetype=racetype))
@@ -794,25 +794,16 @@ def get_races_for_org(org_id):
 
 
 def race_list(org_id):
-    query = """
-        MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(racetype:RaceType)
-        WHERE id(org) = {org_id}
-        RETURN race.name as race, racetype.name as type, id(race) as race_id
-        ORDER BY racetype.weight, race.name
-    """.format(org_id=org_id)
-    return graph.cypher.execute(query)
+    return ns.get_race_list(org_id)
 
 
 def race_label(race_id):
-    query = """
-        MATCH (race:Race)<-[:has]-(org)-[:On]->(date),
-              (org)-[:In]->(loc)
-        WHERE id(race)={race_id}
-        RETURN race.name as race, org.name as org, loc.city as city, date.day as day,
-               date.month as month, date.year as year
-    """.format(race_id=race_id)
-    recordlist = graph.cypher.execute(query)
-    record = recordlist[0]
+    """
+    This function will return the label for the Race nid
+    :param race_id:
+    :return:
+    """
+    record = ns.get_race_label(race_id)
     label = "{day:02d}-{month:02d}-{year} - {city}, {race}".format(race=record["race"], city=record["city"],
                                                                    day=record["day"], month=record["month"],
                                                                    year=record["year"])
@@ -825,15 +816,7 @@ def races4person(pers_id):
     :param pers_id: Node ID for the person
     :return: list with hash per race. Hash has race label and race type.
     """
-    # Todo: Add identifier for the Competition (e.g. Stratenloop 2016).
-    query = """
-        MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
-              <-[:has]-(org:Organization)-[:On]->(day:Day)
-        WHERE id(person)={pers_id}
-        RETURN id(race) as race_id
-        ORDER BY day.key DESC
-    """.format(pers_id=pers_id)
-    recordlist = graph.cypher.execute(query)
+    recordlist = ns.get_race4person(pers_id)
     races = [{'race_id': record.race_id, 'race_label': race_label(record.race_id)} for record in recordlist]
     return races
 
@@ -860,12 +843,15 @@ def person_list():
     Return the list of persons in hash of id, name.
     :return: List of persons. Each person is represented in a hash id, name of the person.
     """
-    query = """
-        MATCH (n:Person)
-        RETURN id(n) as id, n.name as name
-        ORDER BY n.name ASC
-    """
-    return graph.cypher.execute(query)
+    res = ns.get_nodes('Person')
+    person_arr = []
+    for node in res:
+        attribs = {
+            "id": node["id"],
+            "name": node["name"]
+        }
+        person_arr.append(attribs)
+    return person_arr
 
 
 def person4participant(part_id):
@@ -877,13 +863,9 @@ def person4participant(part_id):
     :return: Name (label) associated with the person
     """
     logging.debug("Trying to find participant node for ID: {part_id}".format(part_id=part_id))
-    # First get Node from participant ID
-    part = graph.node(part_id)
-    # Then get relation from participant to person.
-    rel = next(item for item in graph.match(end_node=part, rel_type="is"))
-    # logging.debug("Node: {node}".format(node=rel.start_node.ref))
-    pers_name = rel.start_node["name"]
-    pers_id = ns.node_id(rel.start_node)
+    pers_node = ns.get_start_node(end_node_id=part_id, rel_type="is")
+    pers_name = pers_node["name"]
+    pers_id = pers_node["nid"]
     return dict(name=pers_name, id=pers_id)
 
 
@@ -893,13 +875,15 @@ def participant_list(race_id):
     :param race_id: ID of the race for which current participants are returned
     :return: List of participants. Each participant is represented as a hash id, name of the participant.
     """
-    query = """
-        MATCH (n)-[:is]->()-[:participates]->(race)
-        WHERE id(race) = {race_id}
-        RETURN id(n) as id, n.name as name
-        ORDER BY n.name ASC
-    """.format(race_id=race_id)
-    return graph.cypher.execute(query)
+    res = ns.get_start_nodes(end_node_id=race_id, rel_type="participates")
+    part_arr = []
+    for node in res:
+        attribs = {
+            "id": node["id"],
+            "name": node["name"]
+        }
+        part_arr.append(attribs)
+    return part_arr
 
 
 def participant_seq_list(race_id):
@@ -908,32 +892,18 @@ def participant_seq_list(race_id):
     :param race_id: ID of the race for which the participants are returned in sequence of arrival.
     :return: List of names of the participants in the race. Each item has the person ID and the person name.
     """
-    query = """
-        MATCH race_ptn = (race)<-[:participates]-(participant),
-              participants = (participant)<-[:after*0..]-()
-        WHERE id(race) = {race_id}
-        WITH COLLECT(participants) AS results, MAX(length(participants)) AS maxLength
-        WITH FILTER(result IN results WHERE length(result) = maxLength) AS result_coll
-        UNWIND result_coll as result
-        RETURN nodes(result)
-    """.format(race_id=race_id)
-    # Get the result of the query in a recordlist
-    recordlist = graph.cypher.execute(query)
+    node_list = ns.get_participant_seq_list(race_id)
     finisher_list = []
     # If there are finishers, then recordlist has one element, which is a nodelist
-    if len(recordlist) > 0:
-        node_list = recordlist[0][0]
-        # For each node (participant), find the person name (this may be converted to function).
-        for part in node_list:
-            # graph.match returns iterator. There can be one relation only so getting the first item of the iterator
-            # is sufficient.
-            rel = next(item for item in graph.match(end_node=part, rel_type="is"))
-            logging.debug("Node: {node}".format(node=rel.start_node.ref))
-            pers_name = rel.start_node["name"]
-            pers_id = ns.node_id(rel.start_node)
-            logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_id))
-            pers_obj = [pers_id, pers_name]
-            finisher_list.append(pers_obj)
+    for part in node_list:
+        # graph.match returns iterator. There can be one relation only so getting the first item of the iterator
+        # is sufficient.
+        pers_node = ns.get_start_node(end_node_id=part["nid"], rel_type="is")
+        pers_name = pers_node["name"]
+        pers_id = pers_node["nid"]
+        logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_id))
+        pers_obj = [pers_id, pers_name]
+        finisher_list.append(pers_obj)
     return finisher_list
 
 
@@ -1009,9 +979,30 @@ def racetype_list():
     name.
     :return:
     """
-    query = "match (n:RaceType) return id(n) as id, n.name as name"
-    race_types = graph.cypher.execute(query)
+    race_nodes = ns.get_nodes("RaceType")
+    race_types = []
+    for node in race_nodes:
+        race_tuple = (node["nid"], node["name"])
+        race_types.append(race_tuple)
     return race_types
+
+
+def relations(node_id):
+    """
+    This method will return True if the node with node_id has relations, False otherwise.
+    :param node_id:
+    :return:
+    """
+    return ns.relations(node_id)
+
+
+def remove_node(node_id):
+    """
+    This function will remove the node with node ID node_id
+    :param node_id:
+    :return:
+    """
+    return ns.remove_node(node_id)
 
 
 def set_race_type(race_id=None, race_type_node=None):
