@@ -3,7 +3,9 @@ This procedure will test the neostore functionality.
 """
 
 import unittest
-from lib import my_env, neostore
+
+from competition import create_app, neostore
+
 # Import py2neo to test on class types
 from py2neo import Node
 
@@ -12,13 +14,22 @@ class TestNeoStore(unittest.TestCase):
 
     def setUp(self):
         # Initialize Environment
+        """
         neo4j_params = {
             'user': "neo4j",
             'password': "_m8z8IpJUPyR",
             'db': "stratenloop15.db"
         }
-        self.ns = neostore.NeoStore(**neo4j_params)
-        my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
+        """
+        self.app = create_app('testing')
+        self.app_ctx = self.app.app_context()
+        self.app_ctx.push()
+        self.ns = neostore.NeoStore()
+#       my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
+
+    def tearDown(self):
+        self.app_ctx.pop()
+
 
     def test_get_participant_in_race(self):
         # Valid relation, return single node
@@ -128,9 +139,14 @@ class TestNeoStore(unittest.TestCase):
         # Test if I get a participant list for a race_id
         race_id = "332e1cce-e73e-4a87-bf78-acbdd05cbda3"
         res = self.ns.get_participant_seq_list(race_id)
+        print("Res: {}".format(res))
+        self.assertTrue(isinstance(res, list))
+        self.assertTrue(isinstance(res[0], Node))
+        """
         node_list = neostore.nodelist_from_cursor(res)
         print("{}".format(type(node_list)))
         self.assertTrue(isinstance(res, list))
+        """
 
     def test_get_race_in_org(self):
         # A valid race in an organization
@@ -163,7 +179,7 @@ class TestNeoStore(unittest.TestCase):
         # I need to have 2 organizations in return
         self.assertEqual(len(res), 2)
 
-    def test_get_race4_person(self):
+    def test_get_race4person(self):
         # I want to get a list of dictionaries.
         person_id = "0857952c-6a80-438e-b9a0-b25825b70a64"
         res = self.ns.get_race4person(person_id)
@@ -175,6 +191,7 @@ class TestNeoStore(unittest.TestCase):
         # The dictionary consists of a valid node, referring to a race.
         race = res[1]
         race_id = race["race_id"]
+        self.assertTrue(isinstance(race_id, str))
         race_node = self.ns.node(race_id)
         self.assertTrue(isinstance(race_node, Node))
         # For an invalid Person ID, I need to get a False back.

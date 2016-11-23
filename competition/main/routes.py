@@ -324,14 +324,13 @@ def race_edit(org_id, race_id):
     return race_add(org_id=org_id, race_id=race_id)
 
 
-@main.route('/participant/<org_id>/<race_id>/add', methods=['GET', 'POST'])
+@main.route('/participant/<race_id>/add', methods=['GET', 'POST'])
 @login_required
-def participant_add(org_id, race_id):
+def participant_add(race_id):
     """
     This method will add a person to a race. The previous runner (earlier arrival) is selected from drop-down list.
     By default the person is appended as tha last position in the race, so the previous person was the last one in the
     race. First position is specified as previous runner equals -1.
-    :param org_id: Node ID of the organization.
     :param race_id: ID of the race.
     :return:
     """
@@ -348,7 +347,7 @@ def participant_add(org_id, race_id):
         # Create the participant node, connect to person and to race.
         part = mg.Participant()
         part.add(race_id=race_id, pers_id=runner_id, prev_pers_id=prev_runner_id)
-        return redirect(url_for('main.participant_add', org_id=org_id, race_id=race_id))
+        return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.
         current_app.logger.debug("Initialize page")
@@ -362,7 +361,7 @@ def participant_add(org_id, race_id):
         else:
             remove_race = "Yes"
         return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers,
-                               race_label=race_label, remove_race=remove_race, org_id=org_id)
+                               race_label=race_label, remove_race=remove_race)
 
 
 @main.route('/participant/remove/<race_id>/<pers_id>', methods=['GET', 'POST'])

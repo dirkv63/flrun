@@ -5,6 +5,7 @@ This class consolidates functions related to the neo4J datastore.
 import logging
 import sys
 import uuid
+# from flask import current_app
 from pandas import DataFrame
 from py2neo import Graph, Node, Relationship, NodeSelector
 from py2neo.database import DBMS
@@ -13,36 +14,41 @@ from py2neo.ext.calendar import GregorianCalendar
 
 class NeoStore:
 
-    def __init__(self, **n4j_params):
+    def __init__(self):
         """
         Method to instantiate the class in an object for the neostore.
-        :param config object, to get connection parameters.
         :return: Object to handle neostore commands.
         """
         logging.debug("Initializing Neostore object")
-        self.graph = self._connect2db(**n4j_params)
+        self.graph = self._connect2db()
         self.calendar = GregorianCalendar(self.graph)
         self.selector = NodeSelector(self.graph)
         return
 
     @staticmethod
-    def _connect2db(**n4j_params):
+    def _connect2db():
         """
         Internal method to create a database connection. This method is called during object initialization.
         :return: Database handle and cursor for the database.
         """
+        print("Creating Neostore Object")
         logging.debug("Creating Neostore object.")
+        neo4j_params = {
+            'user': "neo4j",
+            'password': "_m8z8IpJUPyR",
+            'db': "stratenloop15.db"
+        }
         neo4j_config = {
-            'user': n4j_params['user'],
-            'password': n4j_params['password'],
+            'user': neo4j_params['user'],
+            'password': neo4j_params["password"],
         }
         # Connect to Graph
         graph = Graph(**neo4j_config)
         # Check that we are connected to the expected Neo4J Store - to avoid accidents...
         dbname = DBMS().database_name
-        if dbname != n4j_params['db']:
+        if dbname != neo4j_params['db']:
             logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
-                          .format(d=dbname, n=n4j_params['db']))
+                          .format(d=dbname, n=neo4j_params['db']))
             sys.exit(1)
         return graph
 
@@ -313,7 +319,7 @@ class NeoStore:
 
     def get_participant_seq_list(self, race_id):
         """
-        This method will return a dictionary of participants in sequence of arrival for a particular race.
+        This method will return a list of dictionaries of participants in sequence of arrival for a particular race.
         :param race_id:
         :return:
         """

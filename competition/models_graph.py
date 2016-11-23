@@ -1,13 +1,10 @@
 import logging
-from lib import my_env, neostore
+
+from competition import neostore
+from lib import my_env
 
 # Todo: Get Username / Password from environment settings
-neo4j_params = {
-    'user': "neo4j",
-    'password': "_m8z8IpJUPyR",
-    'db': "stratenloop15.db"
-}
-ns = neostore.NeoStore(**neo4j_params)
+ns = neostore.NeoStore()
 
 
 class Participant:
@@ -814,10 +811,10 @@ def races4person(pers_id):
     """
     This method will get the list of races for the person.
     :param pers_id: Node ID for the person
-    :return: list with hash per race. Hash has race label and race type.
+    :return: list with dictionary per race. The dictionary has fields race_label and race_id.
     """
     recordlist = ns.get_race4person(pers_id)
-    races = [{'race_id': record.race_id, 'race_label': race_label(record.race_id)} for record in recordlist]
+    races = [{'race_id': record["race_id"], 'race_label': race_label(record["race_id"])} for record in recordlist]
     return races
 
 
@@ -847,7 +844,7 @@ def person_list():
     person_arr = []
     for node in res:
         attribs = {
-            "id": node["id"],
+            "id": node["nid"],
             "name": node["name"]
         }
         person_arr.append(attribs)

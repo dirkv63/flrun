@@ -4,7 +4,8 @@ be used as the identifier will be reused when nodes are replaced. Also py2neo is
 unique identifier.
 """
 
-from lib import my_env, neostore
+from competition import neostore
+from lib import my_env
 
 if __name__ == "__main__":
     my_env.init_loghandler(__file__, "c:\\temp\\log", "info")

@@ -10,6 +10,10 @@ class Config:
     # Config values from flaskrun.ini
     LOGDIR = "C:\\Temp\\Log"
     LOGLEVEL = "debug"
+    # Neo4J Attributes
+    N4J_USER = "neo4j"
+    N4J_PWD = "_m8z8IpJUPyR"
+    N4J_DB = "stratenloop15.db"
     # OrgType
     WEDSTRIJD = "De organizatie heeft één hoofdwedstrijd en kan één of meer bijwedstrijden hebben."
     O_DEELNAME = "Dit is een organizatie waar elke deelnemer en elke medewerker punten krijgt."
