@@ -44,13 +44,9 @@ def create_app(config_name):
     ns.init_graph(**node_params)
     """
 
-    print("4 Line")
-
     # import blueprints
     from .main import main as main_blueprint
-    print('4.2 Line')
     app.register_blueprint(main_blueprint)
-    print('4.5 line')
     # configure production logging of errors
     try:
         app.config['PRODUCTION']
@@ -62,5 +58,4 @@ def create_app(config_name):
         mail_handler = SMTPHandler('127.0.0.1', 'dirk@vermeylen.net', app.config['ADMINS'], 'Application Error')
         mail_handler.setLevel(logging.ERROR)
         app.logger.addHandler(mail_handler)
-    print("5 Line")
     return app

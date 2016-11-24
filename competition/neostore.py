@@ -319,7 +319,7 @@ class NeoStore:
 
     def get_participant_seq_list(self, race_id):
         """
-        This method will return a list of dictionaries of participants in sequence of arrival for a particular race.
+        This method will return a list of participant nodes in sequence of arrival for a particular race.
         :param race_id:
         :return:
         """

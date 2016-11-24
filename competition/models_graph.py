@@ -874,10 +874,14 @@ def participant_list(race_id):
     """
     res = ns.get_start_nodes(end_node_id=race_id, rel_type="participates")
     part_arr = []
-    for node in res:
+    logging.error("Ready to go into FOR")
+    for part_nid in res:
+        person_nid = ns.get_start_node(end_node_id=part_nid, rel_type="is")
+        person_node = ns.node(person_nid)
+        logging.error("Res: {node_id}".format(node_id=person_node))
         attribs = {
-            "id": node["id"],
-            "name": node["name"]
+            "id": person_node["nid"],
+            "name": person_node["name"]
         }
         part_arr.append(attribs)
     return part_arr
@@ -886,20 +890,19 @@ def participant_list(race_id):
 def participant_seq_list(race_id):
     """
     This method will collect the people in a race in sequence of arrival.
-    :param race_id: ID of the race for which the participants are returned in sequence of arrival.
-    :return: List of names of the participants in the race. Each item has the person ID and the person name.
+    :param race_id: nid of the race for which the participants are returned in sequence of arrival.
+    :return: List of names of the participant items in the race. Each item is a list of person nid and the person name.
     """
     node_list = ns.get_participant_seq_list(race_id)
     finisher_list = []
     # If there are finishers, then recordlist has one element, which is a nodelist
     for part in node_list:
-        # graph.match returns iterator. There can be one relation only so getting the first item of the iterator
-        # is sufficient.
-        pers_node = ns.get_start_node(end_node_id=part["nid"], rel_type="is")
+        # Get person node for this participant
+        pers_nid = ns.get_start_node(end_node_id=part["nid"], rel_type="is")
+        pers_node = ns.node(pers_nid)
         pers_name = pers_node["name"]
-        pers_id = pers_node["nid"]
-        logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_id))
-        pers_obj = [pers_id, pers_name]
+        logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_nid))
+        pers_obj = [pers_nid, pers_name]
         finisher_list.append(pers_obj)
     return finisher_list
 
@@ -909,7 +912,8 @@ def participant_after_list(race_id):
     This method will return the participant sequence list as a SelectField list. It will call participant_seq_list
     and 'prepend' a value for 'eerste aankomer' (value -1).
     :param race_id: Node ID of the race
-    :return: List of the names of the participants and value for 'eerste aankomer'.
+    :return: List of the Person objects (list of Person nid and Person name) in sequence of arrival and value for
+    'eerste aankomer'.
     """
     eerste = [-1, 'Eerste aankomst']
     finisher_list = participant_seq_list(race_id)
@@ -919,11 +923,11 @@ def participant_after_list(race_id):
 
 def participant_last_id(race_id):
     """
-    This method will get the ID of the last participant in the race. It call check participant_after_list and fetch
-    the last ID of the runner. This way no special threatment is required in case there are no participants. The
+    This method will return the nid of the last participant in the race. It calls check participant_after_list and
+    fetches the last ID of the runner. This way no special threatment is required in case there are no participants. The
     ID of the last runner will redirect to -1 then.
-    :param race_id: Node ID of the race.
-    :return: Node ID of the last finisher so far in the race, -1 if no finishers registered yet.
+    :param race_id: Node nid of the race.
+    :return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.
     """
     finisher_list = participant_after_list(race_id)
     part_arr = finisher_list.pop()
@@ -954,7 +958,7 @@ def next_participant(race_id):
     have been selected already in this race. Also all people that have been selected in other races for this
     organization will no longer be available for selection.
     :param race_id:
-    :return:
+    :return: List of the Person objects (Person nid and Person name) that can be selected as participant in the race.
     """
     # Todo: extend to participants that have been selected for this organization (one participation per race per org.)
     # Get Organization for this race
