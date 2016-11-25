@@ -65,7 +65,7 @@
             </tr>
             {% for row in persons %}
             <tr>
-                <td><a href="{{ url_for('main.person_summary', pers_id=row.id) }}">{{ row.name }}</a></td>
+                <td><a href="{{ url_for('main.person_summary', pers_id=row[0]) }}">{{ row[1] }}</a></td>
             </tr>
             {% endfor %}
         </table>

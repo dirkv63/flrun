@@ -147,6 +147,9 @@ class TestNeoStore(unittest.TestCase):
         print("{}".format(type(node_list)))
         self.assertTrue(isinstance(res, list))
         """
+        # Test for race without participants
+        race_id = "a0d3ffb2-5fd3-42fb-909d-11f1c635fdc6"
+        self.assertFalse(self.ns.get_participant_seq_list(race_id))
 
     def test_get_race_in_org(self):
         # A valid race in an organization

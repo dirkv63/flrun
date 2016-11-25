@@ -10,52 +10,68 @@ ns = neostore.NeoStore()
 class Participant:
     def __init__(self, part_id=None, race_id=None, pers_id=None):
         """
-        Sets the Participant Object. The participant must exist, so if called with race_id and person_id, then
-        there must be a participant for this. There is no error checking on it.
-        :param part_id:
-        :param race_id:
-        :param pers_id:
-        :return:
+        A Participant Object is the path: (person)-[:is]->(participant)-[:participates]->(race).
+        If participant id is provided, then find race id and person id.
+        If race id and person id are provided, then try to find participant id. If not successful, then create
+        participant id.
+        At the end of initialization, participant node, id, race id and person id are set.
+        @param part_id: nid of the participant
+        @param race_id: nid of the race
+        @param pers_id: nid of the person
+        @return: Participant object with participant node and nid, race nid and person nid are set.
         """
         self.part_node = None
         self.part_id = -1           # Unique ID (nid) of the Participant node
         if part_id:
             logging.debug("Set Participant with ID: {part_id}".format(part_id=part_id))
             self.part_node = ns.node(part_id)
+            self.part_id = part_id
+            self.race_id = ns.get_end_node(start_node_id=part_id, rel_type="participates")
+            self.pers_id = ns.get_start_node(end_node_id=part_id, rel_type="is")
         elif pers_id and race_id:
+            logging.debug(("Trying to get Participant in race for pers {p} and race {r}"
+                           .format(p=pers_id, r=race_id)))
+            self.race_id = race_id
+            self.pers_id = pers_id
             self.part_node = ns.get_participant_in_race(pers_id=pers_id, race_id=race_id)
-        self.part_id = self.part_node["nid"]
+            if self.part_node:
+                self.part_id = self.part_node["nid"]
+            else:
+                # Participant node not found, so create one.
+                self.part_id = self.set_part_race()
+        else:
+            logging.fatal("No input provided.")
+        return
 
     def get_id(self):
         """
         This method will return the Participant Node ID of this person's participation in the race
-        :return: Participant Node ID (nid)
+        @return: Participant Node ID (nid)
         """
         return self.part_id
 
-    def set_part_race(self, race_id=None, pers_id=None):
+    def set_part_race(self):
         """
-        This method will link the person to the race. This is done using an Participant Node. This function will not
-        link the participant to the previous or next participant.
-        :param race_id: Node ID of the race.
-        :param pers_id: Node ID of the person.
-        :return: Node ID of the participant node.
+        This method will link the person to the race. This is done by creating an Participant Node. This function will
+        not link the participant to the previous or next participant.
+        The method will set the participant node and the participant nid.
+        @return: Node ID of the participant node.
         """
         self.part_node = ns.create_node("Participant")
         self.part_id = self.part_node["nid"]
-        race_node = ns.node(race_id)
+        race_node = ns.node(self.race_id)
         ns.create_relation(from_node=self.part_node, rel="participates", to_node=race_node)
-        runner_node = ns.node(pers_id)
-        ns.create_relation(from_node=runner_node, rel="is", to_node=self.part_node)
+        pers_node = ns.node(self.pers_id)
+        ns.create_relation(from_node=pers_node, rel="is", to_node=self.part_node)
         return self.part_id
 
     @staticmethod
     def set_relation(next_id=None, prev_id=None):
         """
         This method will connect the next runner with the previous runner. The next runner is after the previous runner.
-        :param next_id: Node ID of the next runner
-        :param prev_id: Node ID of the previous runner
-        :return:
+        @param next_id: Node ID of the next runner
+        @param prev_id: Node ID of the previous runner
+        @return:
         """
         prev_part_node = ns.node(prev_id)
         next_part_node = ns.node(next_id)
@@ -63,7 +79,7 @@ class Participant:
                 and neostore.validate_node(next_part_node, "Participant"):
             ns.create_relation(from_node=next_part_node, rel="after", to_node=prev_part_node)
 
-    def add(self, pers_id=None, prev_pers_id=None, race_id=None):
+    def add(self, prev_pers_id=None):
         """
         This function will add the participant in the sequence of participants. The participant's predecessor is known.
         Possibilities:
@@ -74,24 +90,20 @@ class Participant:
         Check if there is a next participant for this participant, so if current runner enters an existing sequence.
         Create the person participant node only when the relations are known. Otherwise the new participant node can
         conflict with the sequence asked for.
-        :param pers_id: Node ID of the person to add to the participant sequence.
-        :param prev_pers_id: Node ID of the previous person, or -1 if the person is the first arrival.
-        :param race_id: Node ID of the race to which the person needs to be added.
-        :return:
+        @param prev_pers_id: Node ID of the previous person, or -1 if the person is the first arrival.
+        @return:
         """
         logging.debug("Add person {id} to previous person {prev_id} for race {race_id}"
-                      .format(id=pers_id, prev_id=prev_pers_id, race_id=race_id))
+                      .format(id=self.pers_id, prev_id=prev_pers_id, race_id=self.race_id))
         if prev_pers_id:
             logging.debug("Before create object for previous participant")
-            prev_part = Participant(pers_id=prev_pers_id, race_id=race_id)
+            prev_part = Participant(pers_id=prev_pers_id, race_id=self.race_id)
             prev_part_id = prev_part.get_id()
             logging.debug("Object for prev_part is created")
             if prev_part.next_runner():
                 # The previous runner for this participant was not the last one so far in the race.
                 # Get next runner to assign as next runner for participant.
                 next_part_id = prev_part.next_runner()
-                # Create the participant node for this person
-                self.set_part_race(race_id=race_id, pers_id=pers_id)
                 # Add link between part and next_part
                 self.set_relation(prev_id=self.part_id, next_id=next_part_id)
                 # Add link between prev_part and part
@@ -100,30 +112,24 @@ class Participant:
                 ns.remove_relation(start_nid=next_part_id, end_nid=prev_part_id, rel_type="after")
             else:
                 # Previous participant but no next participant
-                # Create the participant node for this person
-                self.set_part_race(race_id=race_id, pers_id=pers_id)
                 # Add link between prev_part and this participant only. This participant is last finisher so far in race
                 self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
         else:
             # No previous participant. Find current first participant in race
             # If found: Add link between participant and next_participant.
-            first_person_id = participant_first_id(race_id)
+            first_person_id = participant_first_id(self.race_id)
             if first_person_id > -1:
-                first_part = Participant(race_id=race_id, pers_id=first_person_id)
+                first_part = Participant(race_id=self.race_id, pers_id=first_person_id)
                 first_part_id = first_part.get_id()
                 # Create the participant node for this person
-                self.set_part_race(race_id=race_id, pers_id=pers_id)
                 self.set_relation(prev_id=self.part_id, next_id=first_part_id)
-            else:
-                # Create the participant node for this person
-                self.set_part_race(race_id=race_id, pers_id=pers_id)
         return
 
     def prev_runner(self):
         """
         This method will get the node ID for this Participant's previous runner.
         The participant must have been created before.
-        :return: ID of previous runner participant Node, False if there is no previous runner.
+        @return: ID of previous runner participant Node, False if there is no previous runner.
         """
         if not neostore.validate_node(self.part_node, "Participant"):
             return False
@@ -134,7 +140,7 @@ class Participant:
         """
         This method will get the node ID for this Participant's next runner.
         The participant must have been created before.
-        :return: ID of next runner participant Node, False if there is no next runner.
+        @return: ID of next runner participant Node, False if there is no next runner.
         """
         if not neostore.validate_node(self.part_node, "Participant"):
             return False
@@ -144,7 +150,7 @@ class Participant:
     def remove(self):
         """
         This method will remove the participant from the race.
-        :return:
+        @return:
         """
         if self.prev_runner() and self.next_runner():
             # There is a previous and next runner, link them
@@ -169,7 +175,7 @@ class Person:
         """
         Find ID of the person with name 'name'. Return node ID, else return false.
         This function must be called from add(), so make it an internal function?
-        :return: Node ID, or false if no node could be found.
+        @return: Node ID, or false if no node could be found.
         """
         props = {
             "name": self.name
@@ -186,8 +192,8 @@ class Person:
         """
         Attempt to add the participant with name 'name'. The name must be unique. Person object is set to current
         participant. Name is set in this procedure, ID is set in the find procedure.
-        :param properties: Properties (in dict) for the person
-        :return: True, if registered. False otherwise.
+        @param properties: Properties (in dict) for the person
+        @return: True, if registered. False otherwise.
         """
         self.name = properties['name']
         if self.find():
@@ -204,8 +210,8 @@ class Person:
         """
         This method will update an existing person node. A check is done to guarantee that the name is not duplicated
         to an existing name on another node. Modified properties will be updated and removed properties will be deleted.
-        :param properties: New set of properties for the node
-        :return: True - in case node is rewritten successfully.
+        @param properties: New set of properties for the node
+        @return: True - in case node is rewritten successfully.
         """
         ns.node_update(self.person_id, **properties)
         return True
@@ -214,8 +220,8 @@ class Person:
         """
         This method will set the person associated with this ID. The assumption is that the person_id relates to a
         existing and valid person.
-        :param person_id:
-        :return: Person object is set to the participant.
+        @param person_id:
+        @return: Person object is set to the participant.
         """
         logging.debug("Person ID: {org_id}".format(org_id=person_id))
         person_node = ns.node(person_id)
@@ -229,7 +235,7 @@ class Person:
     def props(self):
         """
         This method will return the properties for the node in a dictionary format.
-        :return:
+        @return:
         """
         return ns.node_props(nid=self.person_id)
 
@@ -237,7 +243,7 @@ class Person:
 class Organization:
     """
     This class instantiates to an organization.
-    :return: Object
+    @return: Object
     """
     def __init__(self, org_id=None):
         self.name = 'NotYetDefined'
@@ -252,9 +258,9 @@ class Organization:
         """
         This method searches for the organization based on organization name, location and datestamp. If found,
         then organization attributes will be set using method set_organization. If not found, 'False' will be returned.
-        :param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
+        @param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
          org_type
-        :return: True if organization is found, False otherwise.
+        @return: True if organization is found, False otherwise.
         """
         org_id = ns.get_organization(**org_dict)
         if org_id:
@@ -269,9 +275,9 @@ class Organization:
         This method will check if the organization is registered already. If not, the organization graph object
         (exists of organization name with link to date and city where it is organized) will be created.
         The organization instance attributes will be set.
-        :param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
+        @param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
          org_type
-        :return: True if the organization has been registered, False if it existed already.
+        @return: True if the organization has been registered, False if it existed already.
         """
         logging.debug("Add Organization: {org_dict}".format(org_dict=org_dict))
         org_type = org_dict["org_type"]
@@ -304,9 +310,9 @@ class Organization:
         date nodes and location nodes if required. The Organization delete function will force to remove an organization
         node without a need to find the date and location first. Therefore the delete function requires a more generic
         date and location removal, where a check on all orphans is done.
-        :param properties: New set of properties for the node. These properties are: name, location, datestamp and
+        @param properties: New set of properties for the node. These properties are: name, location, datestamp and
          org_type
-        :return: True if the organization has been updated, False if it existed already.
+        @return: True if the organization has been updated, False if it existed already.
         """
         logging.debug("In Organization.Edit with properties {properties}".format(properties=properties))
         # Check Organization Type
@@ -360,8 +366,8 @@ class Organization:
         This method will get the organization associated with this ID. The assumption is that the org_id relates to a
         existing and valid organization.
         It will set the organization labels.
-        :param org_id:
-        :return:
+        @param org_id:
+        @return:
         """
         logging.debug("Org ID: {org_id}".format(org_id=org_id))
         this_org = ns.get_organization_from_id(org_id)
@@ -384,14 +390,14 @@ class Organization:
         """
         This method will return the label of the Organization. (Organization name, city and date). Assumption is that
         the organization has been set already.
-        :return:
+        @return:
         """
         return self.label
 
     def get_location(self):
         """
         This method will return the location for the Organization.
-        :return: Location name (city name), or False if no location found.
+        @return: Location name (city name), or False if no location found.
         """
         loc_id = ns.get_end_node(self.org_id, "In")
         loc_node = ns.node(loc_id)
@@ -401,7 +407,7 @@ class Organization:
     def get_date(self):
         """
         This method will return the date for the Organization.
-        :return: Date, Format YYYY-MM-DD
+        @return: Date, Format YYYY-MM-DD
         """
         date_id = ns.get_end_node(self.org_id, "On")
         date_node = ns.node(date_id)
@@ -412,7 +418,7 @@ class Organization:
         """
         This method will return the organization type as a Number. If not available, then Organization type is
         Wedstrijd (1). Not sure what the purpose of this method is.
-        :return: Organization Type. 1: Wedstrijd - 2: Deelname
+        @return: Organization Type. 1: Wedstrijd - 2: Deelname
         """
         # Todo: Review usage of this method.
         org_type = {
@@ -430,8 +436,8 @@ class Organization:
         """
         This method will check the number of races of type racetype. It can be used to check if there is a
         'Hoofdwedstrijd' assigned with the Organization.
-        :param racetype: Race Type (Hoofdwedstrijd, Bijwedstrijd, Deelname)
-        :return: Number of races for this type, False if there are no races.
+        @param racetype: Race Type (Hoofdwedstrijd, Bijwedstrijd, Deelname)
+        @return: Number of races for this type, False if there are no races.
         """
         res = ns.get_wedstrijd_type(self.org_id, racetype)
         if res:
@@ -444,7 +450,7 @@ class Organization:
         """
         This method will check if adding a race needs an option to select a 'Hoofdwedstrijd'. This is required if
         Organization Type is 'Wedstrijd' (1) and no hoofdwedstrijd has been selected.
-        :return: True - if Hoofdwedstrijd option for race is required, False otherwise.
+        @return: True - if Hoofdwedstrijd option for race is required, False otherwise.
         """
         if self.get_org_type() == 1 and not self.has_wedstrijd_type("Hoofdwedstrijd"):
             return True
@@ -455,8 +461,8 @@ class Organization:
         """
         This method will create a relation between the organization and the location. Relation type is 'In'.
         Organization Node must be available for this method.
-        :param loc: Name of the city.
-        :return:
+        @param loc: Name of the city.
+        @return:
         """
         loc_node = Location(loc).get_node()   # Get Location Node
         ns.create_relation(from_node=self.org_node, to_node=loc_node, rel="In")
@@ -466,8 +472,8 @@ class Organization:
         """
         This method will create a relation between the organization and the date. Relation type is 'On'.
         Organization Node must be available for this method.
-        :param ds: Datestamp
-        :return:
+        @param ds: Datestamp
+        @return:
         """
         date_node = ns.date_node(ds)   # Get Date (day) node
         ns.create_relation(from_node=self.org_node, rel="On", to_node=date_node)
@@ -480,9 +486,9 @@ class Organization:
         then all races will be updated to 'Deelname'. In case new organization type is 'Wedstrijd', then all races will
         be updated to 'Bijwedstrijd' since it is not possible to guess the 'Hoofdwedstrijd'. The user needs to remember
         to update the 'Hoofdwedstrijd'. (Maybe send a pop-up message to the user?)
-        :param new_org_type:
-        :param curr_org_type:
-        :return:
+        @param new_org_type:
+        @param curr_org_type:
+        @return:
         """
         logging.debug("In set_org_type, change from current {cot} to new {newot}"
                       .format(cot=curr_org_type, newot=new_org_type))
@@ -537,9 +543,9 @@ class Race:
     def __init__(self, org_id=None, race_id=None):
         """
         Define the Race object.
-        :param org_id: Node ID of the Organization, used to create a new race.
-        :param race_id: Node ID of the Race, to handle an existing race.
-        :return:
+        @param org_id: Node ID of the Organization, used to create a new race.
+        @param race_id: Node ID of the Race, to handle an existing race.
+        @return:
         """
         self.name = 'NotYetDefined'
         self.label = 'NotYetDefined'
@@ -556,8 +562,8 @@ class Race:
         """
         This method searches for the organization based on organization name, location and datestamp. If found,
         then organization attributes will be set using method set_organization. If not found, 'False' will be returned.
-        :param racetype_id: Type of the Race
-        :return: True if a race is found for this organization and racetype, False otherwise.
+        @param racetype_id: Type of the Race
+        @return: True if a race is found for this organization and racetype, False otherwise.
         """
         if ns.get_race_in_org(org_id=self.org_id, racetype_id=racetype_id, name=self.name):
             return True
@@ -568,9 +574,9 @@ class Race:
         """
         This method will check if the race is registered for this organization. If not, the race graph object
         (exists of race name with link to race type and the organization) will be created.
-        :param name: Name of the race
-        :param racetype: 1 then Hoofdwedstrijd. If False: then calculate (bijwedstrijd or Deelname).
-        :return: True if the race has been registered, False if it existed already.
+        @param name: Name of the race
+        @param racetype: 1 then Hoofdwedstrijd. If False: then calculate (bijwedstrijd or Deelname).
+        @return: True if the race has been registered, False if it existed already.
         """
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
         logging.debug("Name: {name}".format(name=name))
@@ -604,8 +610,8 @@ class Race:
     def edit(self, name):
         """
         This method will update the name of the race. It is not possible to modify the race type in this step.
-        :param name: Name of the race
-        :return: True if the race has been updated, False otherwise.
+        @param name: Name of the race
+        @return: True if the race has been updated, False otherwise.
         """
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
         logging.debug("Edit race to new name: {name}".format(name=name))
@@ -618,8 +624,8 @@ class Race:
     def node_set(self, nid=None):
         """
         Given the node_id, this method will configure the race object.
-        :param nid: Node ID of the race node.
-        :return: Fully configured race object.
+        @param nid: Node ID of the race node.
+        @return: Fully configured race object.
         """
         logging.debug("In node_set to create race node for id {node_id}".format(node_id=nid))
         self.race_id = nid
@@ -634,7 +640,7 @@ class Race:
     def get_org_id(self):
         """
         This method set and return the org_id for a race node_id. A valid race_id must be set.
-        :return: org_id
+        @return: org_id
         """
         org_node = ns.get_start_node(end_node_id=self.race_id, rel_type="has")
         logging.debug("ID of the Org for Race ID {race_id} is {org_id}"
@@ -644,7 +650,7 @@ class Race:
     def get_name(self):
         """
         This method get the name of the race.
-        :return: org_id
+        @return: org_id
         """
         return self.name
 
@@ -652,7 +658,7 @@ class Race:
         """
         This method will set the label for the race. Assumptions are that the race name and the organization ID are set
         already.
-        :return:
+        @return:
         """
         logging.debug("Trying to get Organization label for org ID {org_id}".format(org_id=self.org_id))
         org_node = ns.node(self.org_id)
@@ -668,7 +674,7 @@ class Location:
     def find(self):
         """
         Find the location node
-        :return:
+        @return:
         """
         props = {
             "city": self.loc
@@ -687,7 +693,7 @@ class Location:
         """
         This method will get the node that is associated with the location. If the node does not exist already, it will
         be created.
-        :return:
+        @return:
         """
         self.add()    # Register if required, ignore else
         node = self.find()
@@ -698,7 +704,7 @@ def organization_list():
     """
     This function will return a list of organizations. Each item in the list is a dictionary with fields date,
     organization, city, id (for organization nid) and type.
-    :return:
+    @return:
     """
     return ns.get_organization_list()
 
@@ -708,8 +714,8 @@ def organization_delete(org_id=None):
     This methdod will delete an organization. This can be done only if there are no more races attached to the
     organization. If an organization is removed, then check is done for orphan date and orphan location. If available,
     these will also be removed.
-    :param org_id:
-    :return:
+    @param org_id:
+    @return:
     """
     if ns.get_end_nodes(start_node_id=org_id, rel_type="has"):
         logging.info("Organization with id {org_id} cannot be removed, races are attached.".format(org_id=org_id))
@@ -728,8 +734,8 @@ def organization_delete(org_id=None):
 def get_org_id(race_id):
     """
     This method will return the organization ID for a Race ID: Organization has Race.
-    :param race_id: Node ID of the race.
-    :return: Node ID of the organization.
+    @param race_id: Node ID of the race.
+    @return: Node ID of the organization.
     """
     org_id = ns.get_start_node(end_node_id=race_id, rel_type="has")
     return org_id
@@ -738,8 +744,8 @@ def get_org_id(race_id):
 def get_org_type(org_id):
     """
     This method will get the organization Type for this organization. Type can be 'Wedstrijd' or 'Deelname'.
-    :param org_id: Node ID of the Organization.
-    :return: Type of the Organization: Wedstrijd or Deelname
+    @param org_id: Node ID of the Organization.
+    @return: Type of the Organization: Wedstrijd or Deelname
     """
     org_type_id = ns.get_end_node(start_node_id=org_id, rel_type="type")
     org_type_node = ns.node(org_type_id)
@@ -749,8 +755,8 @@ def get_org_type(org_id):
 def get_org_type_node(org_type_id):
     """
     This method will find the Organization Type Node.
-    :param org_type_id: RadioButton selected for Organization Type.
-    :return: Organization Type Node
+    @param org_type_id: RadioButton selected for Organization Type.
+    @return: Organization Type Node
     """
     if org_type_id == 1:
         name = "Wedstrijd"
@@ -765,8 +771,8 @@ def get_org_type_node(org_type_id):
 def get_race_type_node(racetype):
     """
     This method will return the racetype node associated with this racetype.
-    :param racetype: Racetype specifier (Hoofdwedstrijd, Bijwedstrijd, Deelname)
-    :return: Racetype Node, or False if it could not be found.
+    @param racetype: Racetype specifier (Hoofdwedstrijd, Bijwedstrijd, Deelname)
+    @return: Racetype Node, or False if it could not be found.
     """
     if racetype in ["Hoofdwedstrijd", "Bijwedstrijd", "Deelname"]:
         # RaceType defined, so it must be Hoofdwedstrijd.
@@ -783,8 +789,8 @@ def get_race_type_node(racetype):
 def get_races_for_org(org_id):
     """
     This method will return the list of races for an Organization ID: Organization has Race.
-    :param org_id: Node ID of the Organization.
-    :return: List of node IDs of races.
+    @param org_id: Node ID of the Organization.
+    @return: List of node IDs of races.
     """
     races = ns.get_end_nodes(start_node_id=org_id, rel_type="has")
     return races
@@ -797,8 +803,8 @@ def race_list(org_id):
 def race_label(race_id):
     """
     This function will return the label for the Race nid
-    :param race_id:
-    :return:
+    @param race_id:
+    @return:
     """
     record = ns.get_race_label(race_id)
     label = "{day:02d}-{month:02d}-{year} - {city}, {race}".format(race=record["race"], city=record["city"],
@@ -810,8 +816,10 @@ def race_label(race_id):
 def races4person(pers_id):
     """
     This method will get the list of races for the person.
-    :param pers_id: Node ID for the person
-    :return: list with dictionary per race. The dictionary has fields race_label and race_id.
+
+    @param pers_id: Node ID for the person
+
+    @return: list with dictionary per race. The dictionary has fields race_label and race_id.
     """
     recordlist = ns.get_race4person(pers_id)
     races = [{'race_id': record["race_id"], 'race_label': race_label(record["race_id"])} for record in recordlist]
@@ -822,8 +830,8 @@ def race_delete(race_id=None):
     """
     This methdod will delete a race. This can be done only if there are no more participants attached to the
     race.
-    :param race_id: Node ID of the race to be removed.
-    :return: True if race is removed, False otherwise.
+    @param race_id: Node ID of the race to be removed.
+    @return: True if race is removed, False otherwise.
     """
     if ns.get_start_nodes(end_node_id=race_id, rel_type="participates"):
         logging.info("Race with id {race_id} cannot be removed, participants are attached.".format(race_id=race_id))
@@ -837,16 +845,13 @@ def race_delete(race_id=None):
 
 def person_list():
     """
-    Return the list of persons in hash of id, name.
-    :return: List of persons. Each person is represented in a hash id, name of the person.
+    Return the list of persons as person objects.
+    @return: List of persons objects. Each person is represented in a list with nid and name of the person.
     """
     res = ns.get_nodes('Person')
     person_arr = []
     for node in res:
-        attribs = {
-            "id": node["nid"],
-            "name": node["name"]
-        }
+        attribs = [node["nid"], node["name"]]
         person_arr.append(attribs)
     return person_arr
 
@@ -856,8 +861,8 @@ def person4participant(part_id):
     This method will get the person name from a participant ID. First it will convert the participant ID to a
     participant node. Then it gets the (reverse) relation ('is') from participant to person.
     Finally it will return the id and the name of the person in a hash.
-    :param part_id: Node ID of the participant.
-    :return: Name (label) associated with the person
+    @param part_id: Node ID of the participant.
+    @return: Name (label) associated with the person
     """
     logging.debug("Trying to find participant node for ID: {part_id}".format(part_id=part_id))
     pers_node = ns.get_start_node(end_node_id=part_id, rel_type="is")
@@ -869,8 +874,8 @@ def person4participant(part_id):
 def participant_list(race_id):
     """
     Returns the list of participants in hash of id, name.
-    :param race_id: ID of the race for which current participants are returned
-    :return: List of participants. Each participant is represented as a hash id, name of the participant.
+    @param race_id: ID of the race for which current participants are returned
+    @return: List of Person Objects. Each person object is represented as a list with id, name of the participant.
     """
     res = ns.get_start_nodes(end_node_id=race_id, rel_type="participates")
     part_arr = []
@@ -879,10 +884,7 @@ def participant_list(race_id):
         person_nid = ns.get_start_node(end_node_id=part_nid, rel_type="is")
         person_node = ns.node(person_nid)
         logging.error("Res: {node_id}".format(node_id=person_node))
-        attribs = {
-            "id": person_node["nid"],
-            "name": person_node["name"]
-        }
+        attribs = [person_node["nid"], person_node["name"]]
         part_arr.append(attribs)
     return part_arr
 
@@ -890,29 +892,33 @@ def participant_list(race_id):
 def participant_seq_list(race_id):
     """
     This method will collect the people in a race in sequence of arrival.
-    :param race_id: nid of the race for which the participants are returned in sequence of arrival.
-    :return: List of names of the participant items in the race. Each item is a list of person nid and the person name.
+    @param race_id: nid of the race for which the participants are returned in sequence of arrival.
+    @return: List of names of the participant items in the race. Each item is a list of person nid and the person name.
+    False if no participants in the list.
     """
     node_list = ns.get_participant_seq_list(race_id)
-    finisher_list = []
-    # If there are finishers, then recordlist has one element, which is a nodelist
-    for part in node_list:
-        # Get person node for this participant
-        pers_nid = ns.get_start_node(end_node_id=part["nid"], rel_type="is")
-        pers_node = ns.node(pers_nid)
-        pers_name = pers_node["name"]
-        logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_nid))
-        pers_obj = [pers_nid, pers_name]
-        finisher_list.append(pers_obj)
-    return finisher_list
+    if node_list:
+        finisher_list = []
+        # If there are finishers, then recordlist has one element, which is a nodelist
+        for part in node_list:
+            # Get person node for this participant
+            pers_nid = ns.get_start_node(end_node_id=part["nid"], rel_type="is")
+            pers_node = ns.node(pers_nid)
+            pers_name = pers_node["name"]
+            logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_nid))
+            pers_obj = [pers_nid, pers_name]
+            finisher_list.append(pers_obj)
+        return finisher_list
+    else:
+        return False
 
 
 def participant_after_list(race_id):
     """
     This method will return the participant sequence list as a SelectField list. It will call participant_seq_list
     and 'prepend' a value for 'eerste aankomer' (value -1).
-    :param race_id: Node ID of the race
-    :return: List of the Person objects (list of Person nid and Person name) in sequence of arrival and value for
+    @param race_id: Node ID of the race
+    @return: List of the Person objects (list of Person nid and Person name) in sequence of arrival and value for
     'eerste aankomer'.
     """
     eerste = [-1, 'Eerste aankomst']
@@ -926,8 +932,8 @@ def participant_last_id(race_id):
     This method will return the nid of the last participant in the race. It calls check participant_after_list and
     fetches the last ID of the runner. This way no special threatment is required in case there are no participants. The
     ID of the last runner will redirect to -1 then.
-    :param race_id: Node nid of the race.
-    :return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.
+    @param race_id: Node nid of the race.
+    @return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.
     """
     finisher_list = participant_after_list(race_id)
     part_arr = finisher_list.pop()
@@ -939,17 +945,17 @@ def participant_last_id(race_id):
 def participant_first_id(race_id):
     """
     This method will get the ID of the first person in the race.
-    :param race_id: Node ID of the race.
-    :return: Node ID of the first person so far in the race, -1 if no finishers registered yet.
+    @param race_id: Node ID of the race.
+    @return: Node ID of the first person so far in the race, -1 if no finishers registered yet.
     """
     finisher_list = participant_seq_list(race_id)
-    if len(finisher_list):
-        person_id = int(finisher_list[0][0])
+    if finisher_list:
+        person_id = finisher_list[0][0]
+        logging.debug("This is person_id {person_id} from finisher_list {fl} - race_id {race_id}"
+                      .format(person_id=person_id, fl=finisher_list, race_id=race_id))
+        return person_id
     else:
-        person_id = -1
-    logging.debug("This is person_id {person_id} from finisher_list {fl} - race_id {race_id}"
-                  .format(person_id=person_id, fl=finisher_list, race_id=race_id))
-    return person_id
+        return False
 
 
 def next_participant(race_id):
@@ -957,8 +963,8 @@ def next_participant(race_id):
     This method will get the list of potential next participants. This is the list of all persons minus the people that
     have been selected already in this race. Also all people that have been selected in other races for this
     organization will no longer be available for selection.
-    :param race_id:
-    :return: List of the Person objects (Person nid and Person name) that can be selected as participant in the race.
+    @param race_id:
+    @return: List of the Person objects (Person nid and Person name) that can be selected as participant in the race.
     """
     # Todo: extend to participants that have been selected for this organization (one participation per race per org.)
     # Get Organization for this race
@@ -978,7 +984,7 @@ def racetype_list():
     """
     This method will get all the race types. It will return them as a list of tuples with race type ID and race type
     name.
-    :return:
+    @return:
     """
     race_nodes = ns.get_nodes("RaceType")
     race_types = []
@@ -991,8 +997,8 @@ def racetype_list():
 def relations(node_id):
     """
     This method will return True if the node with node_id has relations, False otherwise.
-    :param node_id:
-    :return:
+    @param node_id:
+    @return:
     """
     return ns.relations(node_id)
 
@@ -1000,8 +1006,8 @@ def relations(node_id):
 def remove_node(node_id):
     """
     This function will remove the node with node ID node_id
-    :param node_id:
-    :return:
+    @param node_id:
+    @return:
     """
     return ns.remove_node(node_id)
 
@@ -1010,9 +1016,9 @@ def set_race_type(race_id=None, race_type_node=None):
     """
     Check if old node type is defined. If so, remove the link.
     Then add new link.
-    :param race_id: Node ID for the race
-    :param race_type_node:
-    :return:
+    @param race_id: Node ID for the race
+    @param race_type_node:
+    @return:
     """
     race_node = ns.node(race_id)
     # Check if there is a link now.

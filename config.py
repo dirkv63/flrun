@@ -9,7 +9,7 @@ class Config:
 
     # Config values from flaskrun.ini
     LOGDIR = "C:\\Temp\\Log"
-    LOGLEVEL = "warning"
+    LOGLEVEL = "debug"
     # Neo4J Attributes
     N4J_USER = "neo4j"
     N4J_PWD = "_m8z8IpJUPyR"

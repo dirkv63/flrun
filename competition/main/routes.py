@@ -345,8 +345,8 @@ def participant_add(race_id):
         # runner = runner_obj.get()
         prev_runner_id = form.prev_runner.data
         # Create the participant node, connect to person and to race.
-        part = mg.Participant()
-        part.add(race_id=race_id, pers_id=runner_id, prev_pers_id=prev_runner_id)
+        part = mg.Participant(race_id=race_id, pers_id=runner_id)
+        part.add(prev_pers_id=prev_runner_id)
         return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.

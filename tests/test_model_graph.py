@@ -48,8 +48,11 @@ class TestModelGraph(unittest.TestCase):
         # This needs to be a list
         self.assertTrue(isinstance(next_part, list))
         self.assertEqual(len(next_part), 12)
-        # Each entry needs to be a person object
-        self.assertEqual(len(next_part), 13)
+        # Each entry needs to be a person object: dictionary with id, name
+        person_node = next_part[8]
+        self.assertTrue(isinstance(person_node, list))
+        self.assertTrue(isinstance(person_node[0], str))
+        self.assertTrue((isinstance(person_node[1], str)))
 
     def test_participant_after_list(self):
         # This is the participant_seq_list, with an object [-1, "Eerste Aankomst"] prepended
@@ -79,9 +82,9 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(isinstance(part_list, list))
         self.assertEqual(len(part_list), 6)
         participant = part_list[5]
-        self.assertTrue(isinstance(participant, dict))
-        self.assertTrue(isinstance(participant["name"], str))
-        self.assertTrue(isinstance(participant["id"], str))
+        self.assertTrue(isinstance(participant, list))
+        self.assertTrue(isinstance(participant[0], str))
+        self.assertTrue(isinstance(participant[1], str))
 
     def test_participant_seq_list(self):
         # Get a dictionary of Person objects for a race nid.
@@ -97,6 +100,10 @@ class TestModelGraph(unittest.TestCase):
         self.assertEqual(len(person_object), 2)
         self.assertTrue(isinstance(person_object[0], str))
         self.assertTrue(isinstance(person_object[1], str))
+        # Check for race without participants. This should return False.
+        race_id = "a0d3ffb2-5fd3-42fb-909d-11f1c635fdc6"
+        person_list = mg.participant_seq_list(race_id)
+        self.assertFalse(person_list)
 
     def test_person(self):
         pers_id = "0857952c-6a80-438e-b9a0-b25825b70a64"
@@ -112,9 +119,9 @@ class TestModelGraph(unittest.TestCase):
         self.assertEqual(len(person_list), 25)
         # Person list should be  a list of dictionaries
         person = person_list[12]
-        self.assertTrue(isinstance(person, dict))
-        self.assertTrue(isinstance(person["name"], str))
-        self.assertTrue(isinstance(person["id"], str))
+        self.assertTrue(isinstance(person, list))
+        self.assertTrue(isinstance(person[0], str))
+        self.assertTrue(isinstance(person[1], str))
 
     def test_races4person(self):
         # ID for Dirk Vermeylen
