@@ -90,7 +90,7 @@ class Participant:
         Check if there is a next participant for this participant, so if current runner enters an existing sequence.
         Create the person participant node only when the relations are known. Otherwise the new participant node can
         conflict with the sequence asked for.
-        @param prev_pers_id: Node ID of the previous person, or -1 if the person is the first arrival.
+        @param prev_pers_id: Node ID of the previous person, or None if the person is the first arrival.
         @return:
         """
         logging.debug("Add person {id} to previous person {prev_id} for race {race_id}"
@@ -118,7 +118,7 @@ class Participant:
             # No previous participant. Find current first participant in race
             # If found: Add link between participant and next_participant.
             first_person_id = participant_first_id(self.race_id)
-            if first_person_id > -1:
+            if first_person_id:
                 first_part = Participant(race_id=self.race_id, pers_id=first_person_id)
                 first_part_id = first_part.get_id()
                 # Create the participant node for this person

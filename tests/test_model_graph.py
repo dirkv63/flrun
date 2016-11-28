@@ -2,24 +2,86 @@
 This procedure will test the models_graph functionality.
 """
 
+# import neokit
 import unittest
 from competition import create_app, models_graph as mg, neostore
-from lib import my_env
+# from lib import my_env
 from py2neo import Node
 
 
 class TestModelGraph(unittest.TestCase):
 
+    """
+    @classmethod
+    def setUpClass(cls):
+        # This runs once before the other tests
+        home = "C:\\neo4j-community-3.0.4"
+        gs = neokit.GraphServer(home=home)
+        print("Stop Neo4J Server")
+        gs.stop()
+        print("Start Neo4J Server")
+        gs.start()
+        print("Neo4J Server up and running")
+    """
+
     def setUp(self):
         # Initialize Environment
+        # my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
         self.app = create_app('testing')
         self.app_ctx = self.app.app_context()
         self.app_ctx.push()
-        my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
         self.ns = neostore.NeoStore()
 
     def tearDown(self):
         self.app_ctx.pop()
+
+    def test_class_participant(self):
+        # Get Participant 'Luc Van der Welk' in race Lier - 21 km
+        person_nid = "0edeb999-f682-4624-8c4e-4faf2c0ecdcb"     # Luc VDWelk
+        race_nid = "7ff512b5-7ea3-48ed-86bd-058e791d6a31"       # Lier - 21 km
+        participant_nid = "32783d1e-0552-4bc4-808c-89c499d106d2"
+        # Get a participant object for existing race and person.
+        part = mg.Participant(race_id=race_nid, pers_id=person_nid)
+        self.assertTrue(isinstance(part, mg.Participant))
+        part_nid = part.get_id()
+        self.assertEqual(part_nid, participant_nid)
+        # Add a person to a race
+        add_person_nid = "08f75c0d-d554-4530-8800-2b85b4e86563"    # Benjamin
+        add_part = mg.Participant(race_id=race_nid, pers_id=add_person_nid)
+        self.assertTrue(isinstance(add_part, mg.Participant))
+        # Add Person after LucVDW
+        add_part.add(prev_pers_id=person_nid)
+        # Check Benjamin is on Position 7 in the race
+        part_seq_list = mg.participant_seq_list(race_id=race_nid)
+        self.assertTrue(len(part_seq_list), 8)
+        person_name = part_seq_list[6][1]
+        self.assertEqual(person_name, "Benjamin Tuffin")
+        # Test to remove Benjamin from race
+        add_part.remove()
+        # Check that sequence of arrivals is back at 7
+        part_seq_list = mg.participant_seq_list(race_id=race_nid)
+        self.assertTrue(len(part_seq_list), 7)
+        # Then add Benjamin as last participant in the race
+        add_part = mg.Participant(race_id=race_nid, pers_id=add_person_nid)
+        person_last_nid = "3be05e1c-56d4-4a4c-922b-b912dffcc339"     # Connie VDB
+        add_part.add(prev_pers_id=person_last_nid)
+        # Check Benjamin is on Position 8 in the race
+        part_seq_list = mg.participant_seq_list(race_id=race_nid)
+        self.assertTrue(len(part_seq_list), 8)
+        person_name = part_seq_list[7][1]
+        self.assertEqual(person_name, "Benjamin Tuffin")
+        # Remove Benjamin from race
+        add_part.remove()
+        # And add as first person in the race
+        add_part = mg.Participant(race_id=race_nid, pers_id=add_person_nid)
+        add_part.add()
+        # Check Benjamin is first one in the race now, and the 8 participants are there
+        part_seq_list = mg.participant_seq_list(race_id=race_nid)
+        self.assertTrue(len(part_seq_list), 8)
+        person_name = part_seq_list[0][1]
+        self.assertEqual(person_name, "Benjamin Tuffin")
+        # Remove Benjamin from race
+        add_part.remove()
 
     def test_get_races_for_org(self):
         # Enter an organization ID, check if we get a list of nids of all races back
@@ -66,6 +128,18 @@ class TestModelGraph(unittest.TestCase):
         self.assertEqual(len(person_object), 2)
         self.assertEqual(person_object[0], -1)
         self.assertEqual(person_object[1], "Eerste aankomst")
+
+    def test_participant_finisher_list(self):
+        # Check for race_id Halve Marathon Lier
+        race_id = "7ff512b5-7ea3-48ed-86bd-058e791d6a31"
+        first_nid = mg.participant_first_id(race_id)
+        # First finisher is Kevin Kennis
+        exp_first_nid = "1c727f4c-7423-428f-bdb8-08575031d181"
+        self.assertEqual(first_nid, exp_first_nid)
+        # Race without participants - Groenteloop Schriek, 10,7km
+        race_id = "a0d3ffb2-5fd3-42fb-909d-11f1c635fdc6"
+        first_nid = mg.participant_first_id(race_id)
+        self.assertFalse(first_nid)
 
     def test_participant_last_id(self):
         # Get the nid of the last person in the race.

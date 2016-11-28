@@ -1,4 +1,5 @@
 import coverage
+import neokit
 import unittest
 import os
 

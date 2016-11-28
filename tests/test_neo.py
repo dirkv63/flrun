@@ -30,7 +30,6 @@ class TestNeoStore(unittest.TestCase):
     def tearDown(self):
         self.app_ctx.pop()
 
-
     def test_get_participant_in_race(self):
         # Valid relation, return single node
         part_node = self.ns.get_participant_in_race(pers_id="0b306bd0-7c88-43b9-8657-a644486e377d",
