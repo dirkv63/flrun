@@ -29,6 +29,7 @@ def init_loghandler(scriptname, logdir, loglevel):
     Logfile directory is read from the project .ini file.
     Format of the logmessage is specified in basicConfig function.
     This is for Log Handler configuration. If basic log file configuration is required, then use init_logfile.
+    Review logger, there seems to be a conflict with the flask logger.
     :param scriptname: Name of the calling module.
     :param logdir: Directory of the logfile.
     :param loglevel: The loglevel for logging.
@@ -65,8 +66,8 @@ def init_loghandler(scriptname, logdir, loglevel):
     # Add Formatter to Rotating File Handler
     rfh.setFormatter(formatter_file)
     # Add Handler to the logger
-    logger.addHandler(ch)
-    logger.addHandler(rfh)
+    # logger.addHandler(ch)
+    # logger.addHandler(rfh)
     return logger
 
 

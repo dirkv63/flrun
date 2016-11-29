@@ -138,7 +138,6 @@ class TestNeoStore(unittest.TestCase):
         # Test if I get a participant list for a race_id
         race_id = "332e1cce-e73e-4a87-bf78-acbdd05cbda3"
         res = self.ns.get_participant_seq_list(race_id)
-        print("Res: {}".format(res))
         self.assertTrue(isinstance(res, list))
         self.assertTrue(isinstance(res[0], Node))
         """

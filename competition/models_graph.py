@@ -879,11 +879,9 @@ def participant_list(race_id):
     """
     res = ns.get_start_nodes(end_node_id=race_id, rel_type="participates")
     part_arr = []
-    logging.error("Ready to go into FOR")
     for part_nid in res:
         person_nid = ns.get_start_node(end_node_id=part_nid, rel_type="is")
         person_node = ns.node(person_nid)
-        logging.error("Res: {node_id}".format(node_id=person_node))
         attribs = [person_node["nid"], person_node["name"]]
         part_arr.append(attribs)
     return part_arr

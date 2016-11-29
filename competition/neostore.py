@@ -31,7 +31,6 @@ class NeoStore:
         Internal method to create a database connection. This method is called during object initialization.
         @return: Database handle and cursor for the database.
         """
-        print("Creating Neostore Object")
         logging.debug("Creating Neostore object.")
         neo4j_params = {
             'user': "neo4j",

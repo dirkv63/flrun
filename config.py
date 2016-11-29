@@ -1,15 +1,15 @@
 import os
-basedir = os.path.abspath(os.path.dirname(__file__))
-print('Basedir: {b}'.format(b=basedir))
+# basedir = os.path.abspath(os.path.dirname(__file__))
+# print('Basedir: {b}'.format(b=basedir))
 
 # Be careful: Variable names need to be UPPERCASE
+
 
 class Config:
     SECRET_KEY = os.urandom(24)
 
     # Config values from flaskrun.ini
     LOGDIR = "C:\\Temp\\Log"
-    LOGLEVEL = "debug"
     # Neo4J Attributes
     N4J_USER = "neo4j"
     N4J_PWD = "_m8z8IpJUPyR"
@@ -32,6 +32,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
+    LOGLEVEL = "debug"
     # SERVER_NAME = '0.0.0.0:5012'
     SERVER_NAME = 'localhost:5012'
     SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(os.path.dirname(__file__), "../data-dev.sqlite3")
@@ -40,6 +41,8 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     DEBUG = False
+    # Set Loglevel to warning or worse (error, fatal) for readability
+    LOGLEVEL = "error"
     TESTING = True
     SECRET_KEY = 'The Secret Test Key!'
     WTF_CSRF_ENABLED = False
@@ -50,6 +53,7 @@ class TestingConfig(Config):
 
 class ProductionConfig(Config):
     ADMINS = ['dirk@vermeylen.net']
+    LOGLEVEL = "warning"
     SERVER_NAME = 'localhost:5008'
     SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(os.path.dirname(__file__), "../data.sqlite3")
     DEBUG = False

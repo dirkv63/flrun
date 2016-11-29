@@ -204,7 +204,6 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(isinstance(races, list))
         # Participated in 3 races
         self.assertEqual(len(races), 3)
-        print("Races: {}".format(races))
         # Dictionary has fields race_id and race_label
         race = races[2]
         self.assertTrue(isinstance(race, dict))
