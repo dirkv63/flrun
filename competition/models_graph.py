@@ -358,7 +358,9 @@ class Organization:
                     # Then remove link from current date
                     ns.remove_relation(start_nid=self.org_id, end_nid=ns.node_id(curr_date_node), rel_type="On")
                     # Finally check if date (day, month, year) can be removed.
-                    ns.remove_date(curr_ds)
+                    # Don't remove single date, clear all dates that can be removed. This avoids the handling of key
+                    # because date nodes don't have a nid.
+                    ns.clear_date()
         return True
 
     def set(self, org_id):

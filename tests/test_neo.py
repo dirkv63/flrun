@@ -3,8 +3,10 @@ This procedure will test the neostore functionality.
 """
 
 import unittest
+import uuid
 
 from competition import create_app, neostore
+from datetime import date
 
 # Import py2neo to test on class types
 from py2neo import Node
@@ -25,10 +27,48 @@ class TestNeoStore(unittest.TestCase):
         self.app_ctx = self.app.app_context()
         self.app_ctx.push()
         self.ns = neostore.NeoStore()
+        self.ns.init_graph()
 #       my_env.init_loghandler(__name__, "c:\\temp\\log", "warning")
 
     def tearDown(self):
         self.app_ctx.pop()
+
+    def test_clear_locations(self):
+        # Count number of location nodes. Add two locations.
+        # Count number of locations again. Difference must be 2.
+        # Clear locations. List After must be equal to list before.
+        loc_label = 'Location'
+        bef_list = self.ns.get_nodes(loc_label)
+        bef_list_length = len(bef_list)
+        new_loc = {
+            'city': str(uuid.uuid4())
+        }
+        self.ns.create_node(loc_label, **new_loc)
+        new_loc['city'] = str(uuid.uuid4())
+        self.ns.create_node(loc_label, **new_loc)
+        create_list = self.ns.get_nodes(loc_label)
+        create_length = len(create_list)
+        self.assertEqual(bef_list_length+2, create_length)
+        self.ns.clear_locations()
+        aft_list = self.ns.get_nodes(loc_label)
+        # Not sure if lists will return in same sequence...
+        self.assertEqual(bef_list, aft_list)
+
+    def test_date(self):
+        # This function tests the date_node method, remove_date and the clear_date_node method.
+        nr_nodes = len(self.ns.get_nodes())
+        # Set Dates
+        dsd = date(year=1963, month=7, day=2)
+        self.ns.date_node(dsd)
+        dsc = date(year=1964, month=10, day=28)
+        self.ns.date_node(dsc)
+        # Number of nodes +3: Year - Month - Day
+        ds_nr_nodes = len(self.ns.get_nodes())
+        self.assertEqual(nr_nodes+6, ds_nr_nodes)
+        self.ns.clear_date()
+        # Check number of nodes back to original number
+        ds_nr_nodes = len(self.ns.get_nodes())
+        self.assertEqual(nr_nodes, ds_nr_nodes)
 
     def test_get_participant_in_race(self):
         # Valid relation, return single node
@@ -59,6 +99,11 @@ class TestNeoStore(unittest.TestCase):
         org_type_id = self.ns.get_end_node(start_node_id=org_id, rel_type="type")
         org_type_node = self.ns.node(org_type_id)
         self.assertEqual(org_type_node["name"], "Deelname")
+        # Invalid start node ID
+        self.assertFalse(self.ns.get_end_node(start_node_id="BestaatNiet", rel_type="OokNiet"))
+        # More than 1 end node
+        node_id = "53db6b6c-45cc-4ed8-bb63-93ff40e5c101"
+        self.assertTrue(self.ns.get_end_node(start_node_id=node_id, rel_type="is"))
 
     def test_get_end_nodes(self):
         # Test if I get list back. 'Dirk Van Dijck participated in 4 races"
@@ -71,6 +116,21 @@ class TestNeoStore(unittest.TestCase):
         # Unexistent relation needs to return False
         node_id = "5971e8ce-bffc-48d1-997d-654e6610ada5"
         self.assertFalse(self.ns.get_end_nodes(start_node_id=node_id, rel_type=rel_type))
+        # Unexistent start node needs to return False
+        self.assertFalse(self.ns.get_end_nodes(start_node_id="Ongeldig", rel_type=rel_type))
+
+    def test_get_start_node(self):
+        # Test for non-existing end node
+        node_id = "BestaatNiet"
+        self.assertFalse(self.ns.get_start_node(end_node_id=node_id, rel_type="BestaatNiet"))
+        rel_type = "participates"
+        node_id = "494fd20a-a0a1-4fa4-a24c-6950285efffc"
+        self.assertTrue(self.ns.get_start_node(end_node_id=node_id, rel_type=rel_type))
+
+    def test_get_start_nodes(self):
+        # Test for non-existing end node
+        node_id = "BestaatNiet"
+        self.assertFalse(self.ns.get_start_nodes(end_node_id=node_id, rel_type="BestaatNiet"))
 
     def test_get_node(self):
         # This will test get_nodes in the same go.
@@ -93,7 +153,7 @@ class TestNeoStore(unittest.TestCase):
 
     def test_get_nodes(self):
         # Return list of all nodes
-        self.assertEqual(len(self.ns.get_nodes()), 132)
+        self.assertEqual(len(self.ns.get_nodes()), 130)
         # Return list of all Races
         label = "Race"
         self.assertEqual(len(self.ns.get_nodes(label)), 18)
@@ -216,6 +276,49 @@ class TestNeoStore(unittest.TestCase):
         node_id = "ea83be48-fa39-4f6b-8f57-4952283997b7"
         self.assertTrue(isinstance(self.ns.node(node_id), Node))
         self.assertFalse(self.ns.node("NodeIDDoesNotExist"))
+
+    def test_node_id(self):
+        node_id = "ea83be48-fa39-4f6b-8f57-4952283997b7"
+        self.assertFalse(self.ns.node_id(node_id))
+
+    def test_node_props(self):
+        # This method will test node_props and node_update
+        nid = "0857952c-6a80-438e-b9a0-b25825b70a64"
+        my_props = self.ns.node_props(nid)
+        self.assertEqual(my_props["name"], "Dirk Vermeylen")
+        self.assertEqual(my_props["nid"], nid)
+        mf_orig = my_props["mf"]
+        mf_upd = "kweenie"
+        add_attrib = "add_attrib"
+        my_props["mf"] = mf_upd
+        my_props[add_attrib] = add_attrib
+        self.ns.node_update(**my_props)
+        my_props = self.ns.node_props(nid)
+        self.assertEqual(my_props["name"], "Dirk Vermeylen")
+        self.assertEqual(my_props["mf"], mf_upd)
+        self.assertEqual(my_props["nid"], nid)
+        self.assertEqual(len(my_props), 5)
+        my_props["mf"] = mf_orig
+        del my_props[add_attrib]
+        self.ns.node_update(**my_props)
+        my_props = self.ns.node_props(nid)
+        self.assertEqual(len(my_props), 4)
+        # Remove nid from my_props, Test on node_update return False
+        del my_props["nid"]
+        self.assertFalse(self.ns.node_update(**my_props))
+        # Test for invalid nid
+        my_props["nid"] = "Ongeldig"
+        self.assertFalse(self.ns.node_update(**my_props))
+        self.assertFalse(self.ns.node_props("Ongeldig"))
+
+    def test_relations(self):
+        # Try to remove node with relations. This will test the methods remove_node and relations.
+        nid = "0857952c-6a80-438e-b9a0-b25825b70a64"
+        self.assertFalse(self.ns.remove_node(nid))
+        # Try to remove invalid node nid
+        nid = "BestaatNiet"
+        self.assertFalse(self.ns.remove_node(nid))
+        self.assertFalse(self.ns.relations(nid))
 
     def test_validate_node(self):
         # Validate Participant

@@ -17,8 +17,8 @@ class UserModelTestCase(unittest.TestCase):
         self.app_ctx.pop()
 
     def test_login(self):
-        r = self.client
-        r = self.client.get_label('/login')
+        r = self.client.get('/login')
+        # r = self.client.get_label('/login')
         self.assertEqual(r.status_code, 200)
         self.assertTrue('<h1>Login</h1>' in r.get_data(as_text=True))
         r = self.client.post('/login',
