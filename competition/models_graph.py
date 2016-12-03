@@ -41,6 +41,7 @@ class Participant:
                 self.part_id = self.set_part_race()
         else:
             logging.fatal("No input provided.")
+            raise ValueError("CannotCreateObject")
         return
 
     def get_id(self):
@@ -213,7 +214,8 @@ class Person:
         @param properties: New set of properties for the node
         @return: True - in case node is rewritten successfully.
         """
-        ns.node_update(self.person_id, **properties)
+        properties["nid"] = self.person_id
+        ns.node_update(**properties)
         return True
 
     def set(self, person_id):
@@ -225,9 +227,12 @@ class Person:
         """
         logging.debug("Person ID: {org_id}".format(org_id=person_id))
         person_node = ns.node(person_id)
-        self.name = person_node["name"]
-        self.person_id = person_id
-        return self.person_id, self.name
+        if person_node:
+            self.name = person_node["name"]
+            self.person_id = person_id
+            return self.person_id, self.name
+        else:
+            raise ValueError("NodeNotFound")
 
     def get(self):
         return self.name
@@ -276,7 +281,7 @@ class Organization:
         (exists of organization name with link to date and city where it is organized) will be created.
         The organization instance attributes will be set.
         @param org_dict: New set of properties for the node. These properties are: name, location, datestamp and
-         org_type
+         org_type. Datestamp needs to be of the form 'YYYY-MM-DD'. org_type 1 for Wedstrijd, 2 for deelname.
         @return: True if the organization has been registered, False if it existed already.
         """
         logging.debug("Add Organization: {org_dict}".format(org_dict=org_dict))
@@ -298,7 +303,7 @@ class Organization:
             org_type_node = get_org_type_node(org_type)
             ns.create_relation(from_node=self.org_node, rel="type", to_node=org_type_node)
             # Set organization parameters by finding the created organization
-            # self.find(name, location, datestamp)
+            self.find(**org_dict)
             return True
 
     def edit(self, **properties):
@@ -311,8 +316,9 @@ class Organization:
         node without a need to find the date and location first. Therefore the delete function requires a more generic
         date and location removal, where a check on all orphans is done.
         @param properties: New set of properties for the node. These properties are: name, location, datestamp and
-         org_type
-        @return: True if the organization has been updated, False if it existed already.
+         org_type. Datestamp must be of the form 'YYYY-MM-DD'
+        @return: True if the organization has been updated, False if the organization (name, location, date) existed
+         already. A change in Organization Type only is also a successful (True) change.
         """
         logging.debug("In Organization.Edit with properties {properties}".format(properties=properties))
         # Check Organization Type
@@ -330,9 +336,10 @@ class Organization:
             else:
                 if 'name' in changed_keys:
                     node_prop = dict(
-                        name=properties["name"]
+                        name=properties["name"],
+                        nid=self.org_id
                     )
-                    ns.node_update(self.org_id, **node_prop)
+                    ns.node_update(**node_prop)
                     logging.debug("Name needs to be updated from {on} to {nn}"
                                   .format(on=self.org["name"], nn=properties["name"]))
                 if 'location' in changed_keys:
@@ -361,6 +368,8 @@ class Organization:
                     # Don't remove single date, clear all dates that can be removed. This avoids the handling of key
                     # because date nodes don't have a nid.
                     ns.clear_date()
+                # New attributes configured, now set Organization again.
+                self.set(self.org_id)
         return True
 
     def set(self, org_id):
@@ -381,7 +390,7 @@ class Organization:
         self.org = dict(
             name=this_org["org"],
             location=this_org["city"],
-            datestamp=my_env.datestr2date(this_org["date"])
+            datestamp=this_org["date"]
         )
         self.name = this_org["org"]
         self.org_id = org_id
@@ -416,11 +425,18 @@ class Organization:
         datestamp = date_node["key"]
         return datestamp
 
+    def get_org_id(self):
+        """
+        This method will return the nid of the Organization node.
+        :return: nid of the Organization node
+        """
+        return self.org_id
+
     def get_org_type(self):
         """
         This method will return the organization type as a Number. If not available, then Organization type is
         Wedstrijd (1). Not sure what the purpose of this method is.
-        @return: Organization Type. 1: Wedstrijd - 2: Deelname
+        @return: Organization Type. 1: Wedstrijd (Default) - 2: Deelname
         """
         # Todo: Review usage of this method.
         org_type = {
@@ -434,6 +450,7 @@ class Organization:
             org_type_name = org_type_node["name"]
         return org_type[org_type_name]
 
+
     def has_wedstrijd_type(self, racetype="NotFound"):
         """
         This method will check the number of races of type racetype. It can be used to check if there is a
@@ -443,8 +460,8 @@ class Organization:
         """
         res = ns.get_wedstrijd_type(self.org_id, racetype)
         if res:
-            logging.debug("Organization has {len} races for type {racetype}".format(len=len(res), racetype=racetype))
-            return len(res)
+            logging.debug("Organization has {res} races for type {racetype}".format(res=res, racetype=racetype))
+            return res
         else:
             return False
 
@@ -605,7 +622,7 @@ class Race:
             org_node = ns.node(self.org_id)
             ns.create_relation(from_node=org_node, rel="has", to_node=race_node)
             set_race_type(race_id=ns.node_id(race_node), race_type_node=racetype_node)
-            # Set organization paarameters by finding the created organization
+            # Set organization parameters by finding the created organization
             # self.find(name, location, datestamp)
             return True
 
@@ -618,9 +635,8 @@ class Race:
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
         logging.debug("Edit race to new name: {name}".format(name=name))
         self.name = name
-        race_id = self.race_id
-        props = {'name': self.name}
-        ns.node_update(race_id, **props)
+        props = dict(name=self.name, nid=self.race_id)
+        ns.node_update(**props)
         return True
 
     def node_set(self, nid=None):
@@ -644,10 +660,10 @@ class Race:
         This method set and return the org_id for a race node_id. A valid race_id must be set.
         @return: org_id
         """
-        org_node = ns.get_start_node(end_node_id=self.race_id, rel_type="has")
+        org_node_nid = ns.get_start_node(end_node_id=self.race_id, rel_type="has")
         logging.debug("ID of the Org for Race ID {race_id} is {org_id}"
-                      .format(org_id=org_node["nid"], race_id=self.race_id))
-        return org_node["nid"]
+                      .format(org_id=org_node_nid, race_id=self.race_id))
+        return org_node_nid
 
     def get_name(self):
         """
@@ -713,7 +729,7 @@ def organization_list():
 
 def organization_delete(org_id=None):
     """
-    This methdod will delete an organization. This can be done only if there are no more races attached to the
+    This method will delete an organization. This can be done only if there are no more races attached to the
     organization. If an organization is removed, then check is done for orphan date and orphan location. If available,
     these will also be removed.
     @param org_id:
@@ -747,18 +763,21 @@ def get_org_type(org_id):
     """
     This method will get the organization Type for this organization. Type can be 'Wedstrijd' or 'Deelname'.
     @param org_id: Node ID of the Organization.
-    @return: Type of the Organization: Wedstrijd or Deelname
+    @return: Type of the Organization: Wedstrijd or Deelname, or False in case type could not be found.
     """
     org_type_id = ns.get_end_node(start_node_id=org_id, rel_type="type")
     org_type_node = ns.node(org_type_id)
-    return org_type_node["name"]
+    if org_type_node:
+        return org_type_node["name"]
+    else:
+        return False
 
 
 def get_org_type_node(org_type_id):
     """
     This method will find the Organization Type Node.
     @param org_type_id: RadioButton selected for Organization Type.
-    @return: Organization Type Node
+    @return: Organization Type Node. "Wedstrijd" if org_type_id is 1, "Deelname" in every other case.
     """
     if org_type_id == 1:
         name = "Wedstrijd"
@@ -830,7 +849,7 @@ def races4person(pers_id):
 
 def race_delete(race_id=None):
     """
-    This methdod will delete a race. This can be done only if there are no more participants attached to the
+    This method will delete a race. This can be done only if there are no more participants attached to the
     race.
     @param race_id: Node ID of the race to be removed.
     @return: True if race is removed, False otherwise.
@@ -930,7 +949,7 @@ def participant_after_list(race_id):
 def participant_last_id(race_id):
     """
     This method will return the nid of the last participant in the race. It calls check participant_after_list and
-    fetches the last ID of the runner. This way no special threatment is required in case there are no participants. The
+    fetches the last ID of the runner. This way no special treatment is required in case there are no participants. The
     ID of the last runner will redirect to -1 then.
     @param race_id: Node nid of the race.
     @return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.

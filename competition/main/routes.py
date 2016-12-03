@@ -69,7 +69,7 @@ def person_add(person_id=None):
             else:
                 person = mg.Person()
                 if not person.add(**person_dict):
-                    flash(name + ' bestaat reeds, niet toegevoegd.')
+                    flash(name + ' bestaat reeds, niet toegevoegd.', "warning")
             return redirect(url_for('main.person_add'))
     persons = mg.person_list()
     return render_template('person_add.html', form=form, name=name, persons=persons)
@@ -158,15 +158,15 @@ def organization_add(org_id=None):
                 current_app.logger.debug("Ready to edit organization")
                 org = mg.Organization(org_id=org_id)
                 if org.edit(**org_dict):
-                    flash(org_dict["name"] + ' aangepast.')
+                    flash(org_dict["name"] + ' aangepast.', "success")
                 else:
-                    flash(org_dict["name"] + ' bestaat reeds, niet aangepast.')
+                    flash(org_dict["name"] + ' bestaat reeds, niet aangepast.', "warning")
             else:
                 current_app.logger.debug("Ready to add organization")
                 if mg.Organization().add(**org_dict):
-                    flash(org_dict["name"] + ' toegevoegd als organizatie')
+                    flash(org_dict["name"] + ' toegevoegd als organizatie', "success")
                 else:
-                    flash(org_dict["name"] + ' bestaat reeds, niet toegevoegd.')
+                    flash(org_dict["name"] + ' bestaat reeds, niet toegevoegd.', "warning")
             # Form validated successfully, clear fields!
             return redirect(url_for('main.organization_list'))
     # Request Method is GET or Form did not validate
@@ -220,10 +220,10 @@ def organization_delete(org_id):
     # Todo: Check on Organization Location, does this needs to be removed?
     current_app.logger.debug("Delete organization {org_id}".format(org_id=org_id))
     if mg.organization_delete(org_id=org_id):
-        flash("Organizatie verwijderd.")
+        flash("Organizatie verwijderd.", "success")
         return redirect(url_for('main.organization_list'))
     else:
-        flash("Organizatie niet verwijderd, er zijn nog wedstrijden mee verbonden.")
+        flash("Organizatie niet verwijderd, er zijn nog wedstrijden mee verbonden.", "warning")
         return url_for('main.race_add(org_id)', org_id=org_id)
 
 
@@ -271,14 +271,14 @@ def race_add(org_id, race_id=None):
                 racetype = False
             if race_id:
                 if mg.Race(race_id=race_id).edit(name):
-                    flash(name + ' modified as a Race in Organization')
+                    flash(name + ' modified as a Race in Organization', "success")
                 else:
-                    flash(name + ' does exist already, not created.')
+                    flash(name + ' does exist already, not created.', "warning")
             else:
                 if mg.Race(org_id).add(name, racetype):
-                    flash(name + ' created as a Race in Organization')
+                    flash(name + ' created as a Race in Organization', "success")
                 else:
-                    flash(name + ' does exist already, not created.')
+                    flash(name + ' does exist already, not created.', "warning")
             # Form validated successfully, clear fields!
             return redirect(url_for('main.race_list', org_id=org_id))
     else:
@@ -304,10 +304,10 @@ def race_delete(race_id):
     race = mg.Race(race_id=race_id)
     org_id = race.get_org_id()
     if mg.race_delete(race_id=race_id):
-        flash("Wedstrijd verwijderd.")
+        flash("Wedstrijd verwijderd.", "info")
         return redirect(url_for('main.race_list', org_id=org_id))
     else:
-        flash("Wedstrijd niet verwijderd, er zijn nog deelnemers mee verbonden.")
+        flash("Wedstrijd niet verwijderd, er zijn nog deelnemers mee verbonden.", "warning")
         return redirect(url_for('main.participant_add', race_id=race_id))
 
 

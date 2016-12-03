@@ -1,28 +1,14 @@
 """
-This procedure will test the models_graph functionality.
+This procedure will test the functions of the models_graph module.
 """
 
-# import neokit
 import unittest
 from competition import create_app, models_graph as mg, neostore
-# from lib import my_env
 from py2neo import Node
 
 
+# @unittest.skip("Focus on Coverage")
 class TestModelGraph(unittest.TestCase):
-
-    """
-    @classmethod
-    def setUpClass(cls):
-        # This runs once before the other tests
-        home = "C:\\neo4j-community-3.0.4"
-        gs = neokit.GraphServer(home=home)
-        print("Stop Neo4J Server")
-        gs.stop()
-        print("Start Neo4J Server")
-        gs.start()
-        print("Neo4J Server up and running")
-    """
 
     def setUp(self):
         # Initialize Environment
@@ -35,53 +21,33 @@ class TestModelGraph(unittest.TestCase):
     def tearDown(self):
         self.app_ctx.pop()
 
-    def test_class_participant(self):
-        # Get Participant 'Luc Van der Welk' in race Lier - 21 km
-        person_nid = "0edeb999-f682-4624-8c4e-4faf2c0ecdcb"     # Luc VDWelk
-        race_nid = "7ff512b5-7ea3-48ed-86bd-058e791d6a31"       # Lier - 21 km
-        participant_nid = "32783d1e-0552-4bc4-808c-89c499d106d2"
-        # Get a participant object for existing race and person.
-        part = mg.Participant(race_id=race_nid, pers_id=person_nid)
-        self.assertTrue(isinstance(part, mg.Participant))
-        part_nid = part.get_id()
-        self.assertEqual(part_nid, participant_nid)
-        # Add a person to a race
-        add_person_nid = "08f75c0d-d554-4530-8800-2b85b4e86563"    # Benjamin
-        add_part = mg.Participant(race_id=race_nid, pers_id=add_person_nid)
-        self.assertTrue(isinstance(add_part, mg.Participant))
-        # Add Person after LucVDW
-        add_part.add(prev_pers_id=person_nid)
-        # Check Benjamin is on Position 7 in the race
-        part_seq_list = mg.participant_seq_list(race_id=race_nid)
-        self.assertTrue(len(part_seq_list), 8)
-        person_name = part_seq_list[6][1]
-        self.assertEqual(person_name, "Benjamin Tuffin")
-        # Test to remove Benjamin from race
-        add_part.remove()
-        # Check that sequence of arrivals is back at 7
-        part_seq_list = mg.participant_seq_list(race_id=race_nid)
-        self.assertTrue(len(part_seq_list), 7)
-        # Then add Benjamin as last participant in the race
-        add_part = mg.Participant(race_id=race_nid, pers_id=add_person_nid)
-        person_last_nid = "3be05e1c-56d4-4a4c-922b-b912dffcc339"     # Connie VDB
-        add_part.add(prev_pers_id=person_last_nid)
-        # Check Benjamin is on Position 8 in the race
-        part_seq_list = mg.participant_seq_list(race_id=race_nid)
-        self.assertTrue(len(part_seq_list), 8)
-        person_name = part_seq_list[7][1]
-        self.assertEqual(person_name, "Benjamin Tuffin")
-        # Remove Benjamin from race
-        add_part.remove()
-        # And add as first person in the race
-        add_part = mg.Participant(race_id=race_nid, pers_id=add_person_nid)
-        add_part.add()
-        # Check Benjamin is first one in the race now, and the 8 participants are there
-        part_seq_list = mg.participant_seq_list(race_id=race_nid)
-        self.assertTrue(len(part_seq_list), 8)
-        person_name = part_seq_list[0][1]
-        self.assertEqual(person_name, "Benjamin Tuffin")
-        # Remove Benjamin from race
-        add_part.remove()
+    def test_get_org_type(self):
+        # Check if I get org Type back for Wedstrijd or Deelname
+        # Check on invalid node
+        org_type_nid = "726d030b-e80c-4a1f-8cbd-86cade4ea090"
+        self.assertEqual(mg.get_org_type(org_type_nid), "Wedstrijd")
+        org_type_nid = "ea83be48-fa39-4f6b-8f57-4952283997b7"
+        self.assertEqual(mg.get_org_type(org_type_nid), "Deelname")
+        # Not ID of an organization
+        org_type_nid = "cf36c737-5171-41ba-b621-c66de41b6209"
+        self.assertFalse(mg.get_org_type(org_type_nid))
+        # Not an node at all
+        self.assertFalse(mg.get_org_type("BestaatNiet"))
+
+    def test_get_org_type_node(self):
+        # Return node for Wedstrijd in case org_type_id = 1,
+        # Return node for Deelname in any other case
+        org_type_id = 1
+        org_type_node = mg.get_org_type_node(org_type_id)
+        self.assertTrue(isinstance(org_type_node, Node))
+        self.assertEqual(org_type_node["name"], "Wedstrijd")
+        org_type_id = 2
+        org_type_node = mg.get_org_type_node(org_type_id)
+        self.assertTrue(isinstance(org_type_node, Node))
+        self.assertEqual(org_type_node["name"], "Deelname")
+        org_type_node = mg.get_org_type_node("BestaatNiet")
+        self.assertTrue(isinstance(org_type_node, Node))
+        self.assertEqual(org_type_node["name"], "Deelname")
 
     def test_get_races_for_org(self):
         # Enter an organization ID, check if we get a list of nids of all races back
@@ -103,7 +69,7 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(isinstance(org_node, Node))
         self.assertTrue(neostore.validate_node(org_node, "Organization"))
 
-    def test_next_participants(self):
+    def test_next_participant(self):
         # For a specific Race, select the list of potential next participants
         race_id = "332e1cce-e73e-4a87-bf78-acbdd05cbda3"
         next_part = mg.next_participant(race_id)
@@ -115,6 +81,9 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(isinstance(person_node, list))
         self.assertTrue(isinstance(person_node[0], str))
         self.assertTrue((isinstance(person_node[1], str)))
+
+    # def test_organization_delete(self):
+    #   This test is done in test_models_graph_classes.py
 
     def test_participant_after_list(self):
         # This is the participant_seq_list, with an object [-1, "Eerste Aankomst"] prepended
@@ -178,13 +147,6 @@ class TestModelGraph(unittest.TestCase):
         race_id = "a0d3ffb2-5fd3-42fb-909d-11f1c635fdc6"
         person_list = mg.participant_seq_list(race_id)
         self.assertFalse(person_list)
-
-    def test_person(self):
-        pers_id = "0857952c-6a80-438e-b9a0-b25825b70a64"
-        person = mg.Person()
-        person.set(pers_id)
-        self.assertTrue(isinstance(person, mg.Person))
-        self.assertEqual(person.get(), "Dirk Vermeylen")
 
     def test_person_list(self):
         # Person list, check if list is back.

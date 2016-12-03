@@ -12,6 +12,7 @@ from datetime import date
 from py2neo import Node
 
 
+# @unittest.skip("Focus on Coverage")
 class TestNeoStore(unittest.TestCase):
 
     def setUp(self):
@@ -65,6 +66,10 @@ class TestNeoStore(unittest.TestCase):
         # Number of nodes +3: Year - Month - Day
         ds_nr_nodes = len(self.ns.get_nodes())
         self.assertEqual(nr_nodes+6, ds_nr_nodes)
+        # Test to set date from string
+        self.assertTrue(isinstance(self.ns.date_node("1963-07-02"), Node))
+        # Test date from invalid string is False
+        self.assertFalse(isinstance(self.ns.date_node("OngeldigeDatum"), Node))
         self.ns.clear_date()
         # Check number of nodes back to original number
         ds_nr_nodes = len(self.ns.get_nodes())
@@ -113,10 +118,10 @@ class TestNeoStore(unittest.TestCase):
         res = self.ns.get_end_nodes(start_node_id=node_id, rel_type=rel_type)
         self.assertTrue(isinstance(res, list))
         self.assertEqual(len(res), 4)
-        # Unexistent relation needs to return False
+        # Invalid relation needs to return False
         node_id = "5971e8ce-bffc-48d1-997d-654e6610ada5"
         self.assertFalse(self.ns.get_end_nodes(start_node_id=node_id, rel_type=rel_type))
-        # Unexistent start node needs to return False
+        # Invalid start node needs to return False
         self.assertFalse(self.ns.get_end_nodes(start_node_id="Ongeldig", rel_type=rel_type))
 
     def test_get_start_node(self):
@@ -218,7 +223,7 @@ class TestNeoStore(unittest.TestCase):
         self.assertFalse(self.ns.get_race_in_org(org_id, racetype_id, "109 km"))
 
     def test_get_race_label(self):
-        # For a vaild Race ID I want to have a dictionary back.
+        # For a valid Race ID I want to have a dictionary back.
         race_id = "b484cf1d-e2ad-43d0-84a7-e2f3e25bba5e"
         res = self.ns.get_race_label(race_id)
         self.assertTrue(isinstance(res, dict))
@@ -229,7 +234,7 @@ class TestNeoStore(unittest.TestCase):
         self.assertFalse(self.ns.get_race_label(race_id))
 
     def test_get_race_list(self):
-        # For an organization I need to get a list of race dictionaries. For this organiztaion I want to get 2 races.
+        # For an organization I need to get a list of race dictionaries. For this organization I want to get 2 races.
         org_id = "436de584-4a6a-4ff4-b37e-b34b9e1c4df5"
         res = self.ns.get_race_list(org_id)
         # Do I get a list?
@@ -280,6 +285,20 @@ class TestNeoStore(unittest.TestCase):
     def test_node_id(self):
         node_id = "ea83be48-fa39-4f6b-8f57-4952283997b7"
         self.assertFalse(self.ns.node_id(node_id))
+
+    def test_node_no_nid(self):
+        # Function to test setting of nids on nodes.
+        # Initially every node should have a nid.
+        self.assertEqual(self.ns.get_nodes_no_nid(), 0)
+        # Then add date for new year
+        ds = "1987-10-03"
+        self.ns.date_node(ds)
+        # Check that date node with month has nid
+        props = dict(key="1987-10")
+        node = self.ns.get_node(**props)
+        self.assertTrue(isinstance(node["nid"], str))
+        # Remove date nodes
+        self.ns.clear_date()
 
     def test_node_props(self):
         # This method will test node_props and node_update
