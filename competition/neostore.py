@@ -45,7 +45,7 @@ class NeoStore:
         graph = Graph(**neo4j_config)
         # Check that we are connected to the expected Neo4J Store - to avoid accidents...
         dbname = DBMS().database_name
-        if dbname != neo4j_params['db']:
+        if dbname != neo4j_params['db']:    # pragma: no cover
             logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
                           .format(d=dbname, n=neo4j_params['db']))
             sys.exit(1)
@@ -78,6 +78,19 @@ class NeoStore:
         @return: Node that has been created.
         """
         props['nid'] = str(uuid.uuid4())
+        component = Node(*labels, **props)
+        self.graph.create(component)
+        return component
+
+    def create_node_no_nid(self, *labels, **props):     # pragma: no cover
+        """
+        Function to create node. The function will return the node object.
+        Note that in this case a 'nid' attribute will not be added to the node. This is for restoring a previous dump
+        of this database.
+        @param labels: Labels for the node
+        @param props: Value dictionary with values for the node.
+        @return: Node that has been created.
+        """
         component = Node(*labels, **props)
         self.graph.create(component)
         return component
@@ -127,6 +140,15 @@ class NeoStore:
         self.clear_date_node("Day")
         self.clear_date_node("Month")
         self.clear_date_node("Year")
+        return
+
+    def clear_store(self):      # pragma: no cover
+        """
+        This method will remove all nodes and relations in a datastore. It should be used during tests only.
+        :return:
+        """
+        query = "MATCH (n) DETACH DELETE n"
+        self.graph.run(query)
         return
 
     def date_node(self, ds):
@@ -368,24 +390,28 @@ class NeoStore:
 
     def get_race_in_org(self, org_id, racetype_id, name):
         """
-        This function will find a race of a specific type in an organization. It will return True if one or more
-        races have been found, False otherwise.
+        This function will find a race of a specific type in an organization. It will return the race attributes if a
+        race has been found, false otherwise.
         @param org_id: nid of the Organization node.
         @param racetype_id: nid of the RaceType node.
         @param name: label (name) of the race (e.g. 10 km).
-        @return: Number of races found. True (1), if race has been found for this organization. False (0) otherwise.
+        @return: tuple with race nid and organization name, or False if race not found.
         """
         query = """
         MATCH (org:Organization)-->(race:Race)-->(racetype:RaceType)
         WHERE org.nid='{org_id}'
           AND racetype.nid='{racetype}'
           AND race.name='{name}'
-        RETURN race
+        RETURN race.nid as race_nid, org.name as org_name
         """.format(org_id=org_id, racetype=racetype_id, name=name)
         logging.debug("Query: {query}".format(query=query))
         race_cursor = self.graph.run(query)
-        race = nodelist_from_cursor(race_cursor)
-        return len(race)
+        try:
+            race_data = next(race_cursor)
+        except StopIteration:
+            return False
+        else:
+            return race_data["race_nid"], race_data["org_name"]
 
     def get_race_label(self, race_id):
         """
@@ -439,6 +465,16 @@ class NeoStore:
             ORDER BY day.key DESC
         """.format(pers_id=person_id)
         res = self.graph.run(query).data()
+        return res
+
+    def get_relations(self):
+        """
+        This method will return all relations in the database as a list of dictionaries with keys from_nid, rel, to_nid.
+        @return: cursor with every possible relation. A cursor is an generator, so only a single pass in a for-loop is
+         possible. Access the fields from_nid, rel and to_nid as dictionary items.
+        """
+        query = "match (n)-[r]->(m) return n.nid as from_nid, type(r) as rel, m.nid as to_nid"
+        res = self.graph.run(query)
         return res
 
     def get_start_node(self, end_node_id=None, rel_type=None):

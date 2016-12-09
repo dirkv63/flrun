@@ -219,7 +219,11 @@ class TestNeoStore(unittest.TestCase):
         org_id = "436de584-4a6a-4ff4-b37e-b34b9e1c4df5"
         racetype_id = "38c4984e-5303-42e9-8adc-f671bbc4bf72"
         name = "9 km"
-        self.assertEqual(self.ns.get_race_in_org(org_id, racetype_id, name), 1)
+        # Return tuple of race nid and organization name
+        (race_nid, org_name) = self.ns.get_race_in_org(org_id, racetype_id, name)
+        self.assertEqual(race_nid, "a41af63a-5039-405c-b5eb-289481fab82b")
+        self.assertEqual(org_name, "Parel Der Kempen")
+        # An invalid race
         self.assertFalse(self.ns.get_race_in_org(org_id, racetype_id, "109 km"))
 
     def test_get_race_label(self):

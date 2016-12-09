@@ -1,7 +1,7 @@
 import logging
 
 from competition import neostore
-from lib import my_env
+# from lib import my_env
 
 # Todo: Get Username / Password from environment settings
 ns = neostore.NeoStore()
@@ -132,7 +132,7 @@ class Participant:
         The participant must have been created before.
         @return: ID of previous runner participant Node, False if there is no previous runner.
         """
-        if not neostore.validate_node(self.part_node, "Participant"):
+        if not neostore.validate_node(self.part_node, "Participant"):       # pragma: no cover
             return False
         prev_part_id = ns.get_end_node(start_node_id=self.part_id, rel_type="after")
         return prev_part_id
@@ -143,7 +143,7 @@ class Participant:
         The participant must have been created before.
         @return: ID of next runner participant Node, False if there is no next runner.
         """
-        if not neostore.validate_node(self.part_node, "Participant"):
+        if not neostore.validate_node(self.part_node, "Participant"):       # pragma: no cover
             return False
         next_part_id = ns.get_start_node(end_node_id=self.part_id, rel_type="after")
         return next_part_id
@@ -450,7 +450,6 @@ class Organization:
             org_type_name = org_type_node["name"]
         return org_type[org_type_name]
 
-
     def has_wedstrijd_type(self, racetype="NotFound"):
         """
         This method will check the number of races of type racetype. It can be used to check if there is a
@@ -573,21 +572,25 @@ class Race:
         if org_id:
             self.org_id = org_id
         elif race_id:
-            print("Trying to set Race Object for Race ID {race_id}".format(race_id=race_id))
             logging.debug("Trying to set Race Object for ID {race_id}".format(race_id=race_id))
             self.node_set(nid=race_id)
 
     def find(self, racetype_id):
         """
         This method searches for the organization based on organization name, location and datestamp. If found,
-        then organization attributes will be set using method set_organization. If not found, 'False' will be returned.
+        then organization attributes will be set using method set_organization and True will be returned.
+        If not found, 'False' will be returned.
         @param racetype_id: Type of the Race
         @return: True if a race is found for this organization and racetype, False otherwise.
         """
-        if ns.get_race_in_org(org_id=self.org_id, racetype_id=racetype_id, name=self.name):
-            return True
-        else:
+        try:
+            (race_nid, org_name) = ns.get_race_in_org(org_id=self.org_id, racetype_id=racetype_id, name=self.name)
+        except TypeError:
             return False
+        else:
+            self.race_id = race_nid
+            self.label = self.set_label()
+            return True
 
     def add(self, name, racetype=None):
         """
@@ -619,11 +622,12 @@ class Race:
                 "name": name
             }
             race_node = ns.create_node("Race", **props)
+            self.race_id = race_node["nid"]
             org_node = ns.node(self.org_id)
             ns.create_relation(from_node=org_node, rel="has", to_node=race_node)
             set_race_type(race_id=ns.node_id(race_node), race_type_node=racetype_node)
             # Set organization parameters by finding the created organization
-            # self.find(name, location, datestamp)
+            self.find(racetype_id)
             return True
 
     def edit(self, name):
@@ -818,6 +822,11 @@ def get_races_for_org(org_id):
 
 
 def race_list(org_id):
+    """
+    This function will return a list of races for an organization ID
+    :param org_id: nid of the organization
+    :return: List of races.
+    """
     return ns.get_race_list(org_id)
 
 
@@ -883,13 +892,16 @@ def person4participant(part_id):
     participant node. Then it gets the (reverse) relation ('is') from participant to person.
     Finally it will return the id and the name of the person in a hash.
     @param part_id: Node ID of the participant.
-    @return: Name (label) associated with the person
+    @return: Person dictionary with name and nid, or False if no person found for participant id nid.
     """
-    logging.debug("Trying to find participant node for ID: {part_id}".format(part_id=part_id))
-    pers_node = ns.get_start_node(end_node_id=part_id, rel_type="is")
-    pers_name = pers_node["name"]
-    pers_id = pers_node["nid"]
-    return dict(name=pers_name, id=pers_id)
+    person_nid = ns.get_start_node(end_node_id=part_id, rel_type="is")
+    if person_nid:
+        person_node = ns.node(person_nid)
+        person_name = person_node["name"]
+        return dict(name=person_name, nid=person_nid)
+    else:
+        logging.error("Cannot find person for participant node nid: {part_id}".format(part_id=part_id))
+        return False
 
 
 def participant_list(race_id):

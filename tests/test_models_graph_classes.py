@@ -223,6 +223,29 @@ class TestModelGraph(unittest.TestCase):
         # Reset to old name
         self.assertTrue(race.edit(race_name))
 
+    def test_class_race_new(self):
+        # Create an organization first
+        ds = '1967-07-02'
+        loc = "Nieuwe Loc"
+        name = "Nieuwe wedstrijd"
+        org_type = 1
+        props = dict(name=name, location=loc, datestamp=ds, org_type=org_type)
+        org = mg.Organization()
+        self.assertTrue(org.add(**props))
+        org_label = "Nieuwe wedstrijd (Nieuwe Loc, 02-07-1967)"
+        self.assertEqual(org.get_label(), org_label)
+        org_id = org.get_org_id()
+        # Then add a race to the organization
+        race = mg.Race(org_id=org_id)
+        self.assertTrue(isinstance(race, mg.Race))
+        racename = "10 Miles"
+        self.assertTrue(race.add(racename, 1))
+        # OK, remove race and organization
+        race_id = race.race_id
+        self.assertTrue(mg.race_delete(race_id))
+        # Also remove Organization
+        mg.organization_delete(org_id)
+
 
 if __name__ == "__main__":
     unittest.main()

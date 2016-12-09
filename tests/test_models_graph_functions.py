@@ -49,6 +49,15 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(isinstance(org_type_node, Node))
         self.assertEqual(org_type_node["name"], "Deelname")
 
+    def test_get_org_id(self):
+        # Enter a race_id, get an organization nid back
+        race_id = "332e1cce-e73e-4a87-bf78-acbdd05cbda3"
+        org_id = mg.get_org_id(race_id)
+        self.assertTrue(org_id, str)
+        org_node = self.ns.node(org_id)
+        self.assertTrue(isinstance(org_node, Node))
+        self.assertTrue(neostore.validate_node(org_node, "Organization"))
+
     def test_get_races_for_org(self):
         # Enter an organization ID, check if we get a list of nids of all races back
         org_id = "7ba23dbc-9514-439b-a7b3-9d630972f68c"
@@ -60,14 +69,12 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(isinstance(race_node, Node))
         self.assertTrue(neostore.validate_node(race_node, "Race"))
 
-    def test_get_org_id(self):
-        # Enter a race_id, get an organization nid back
-        race_id = "332e1cce-e73e-4a87-bf78-acbdd05cbda3"
-        org_id = mg.get_org_id(race_id)
-        self.assertTrue(org_id, str)
-        org_node = self.ns.node(org_id)
-        self.assertTrue(isinstance(org_node, Node))
-        self.assertTrue(neostore.validate_node(org_node, "Organization"))
+    def test_get_race_type_node(self):
+        # Check on valid / invalid race types
+        race_types = ["Hoofdwedstrijd", "Bijwedstrijd", "Deelname"]
+        for race_type in race_types:
+            self.assertTrue(isinstance(mg.get_race_type_node(race_type), Node))
+        self.assertFalse(mg.get_race_type_node("Ongeldig"))
 
     def test_next_participant(self):
         # For a specific Race, select the list of potential next participants
@@ -148,6 +155,16 @@ class TestModelGraph(unittest.TestCase):
         person_list = mg.participant_seq_list(race_id)
         self.assertFalse(person_list)
 
+    def test_person4participant(self):
+        # For a valid participant id, I need to get person name and id back
+        # For an invalide participant id, I want to get False back
+        part_nid = "aaca43c8-0c35-4d32-9ccb-b3c9eee3eeec"
+        person = mg.person4participant(part_nid)
+        self.assertEqual(person["name"], "Ann Smet")
+        self.assertEqual(person["nid"], "f9414813-fb14-4370-b609-19312adfbd8e")
+        part_nid = "BestaatNiet"
+        self.assertFalse(mg.person4participant(part_nid))
+
     def test_person_list(self):
         # Person list, check if list is back.
         person_list = mg.person_list()
@@ -158,6 +175,36 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(isinstance(person, list))
         self.assertTrue(isinstance(person[0], str))
         self.assertTrue(isinstance(person[1], str))
+
+    def test_race_delete(self):
+        # Try to delete a race with participants
+        # This should fail and return False
+        race_id = "df504d4b-b4b6-4b4f-b1d9-304092850324"
+        self.assertFalse(mg.race_delete(race_id))
+
+    def test_race_list(self):
+        # For a valid organization ID I need to get a race list back
+        # For an invalide organization ID False needs to be returned
+        org_id = "e92399b0-c143-4696-8543-6b10715817b2"
+        races = mg.race_list(org_id)
+        self.assertTrue(isinstance(races, list))
+        self.assertEqual(len(races), 3)
+        # For a new organization ID I want to have a valid empty list
+        org_id = "ea83be48-fa39-4f6b-8f57-4952283997b7"
+        races = mg.race_list(org_id)
+        self.assertTrue(isinstance(races, list))
+        self.assertEqual(len(races), 0)
+        org_id = "BestaatNiet"
+        self.assertFalse(mg.race_list(org_id))
+
+    def test_racetype_list(self):
+        # Check if I get a list of tuples back. Each tuple must be a nid and a racetype name.
+        rtl = mg.racetype_list()
+        self.assertTrue(isinstance(rtl, list))
+        self.assertTrue(isinstance(rtl[1], tuple))
+        (nid, name) = rtl[2]
+        self.assertTrue(isinstance(nid, str))
+        self.assertTrue(isinstance(name, str))
 
     def test_races4person(self):
         # ID for Dirk Vermeylen
