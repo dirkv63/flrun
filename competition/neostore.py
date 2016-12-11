@@ -211,9 +211,12 @@ class NeoStore:
         @param part_nid: Nid of the participant node.
         @return: Category (Dames or Heren), or False if no category could be found.
         """
-        query = "MATCH (n:Participant)<-[:is]-()-[:mf]->(c:MF) WHERE n.nid='{p}' RETURN c.name as name"
-        res = self.graph.run(query.format(p=part_nid))
-        rec = res.next()
+        query = "MATCH (n:Participant {nid:{p}})<-[:is]-()-[:mf]->(c:MF) RETURN c.name as name"
+        res = self.graph.run(query, p=part_nid)
+        try:
+            rec = res.next()
+        except StopIteration:
+            return False
         return rec["name"]
 
     def get_end_nodes(self, start_node_id=None, rel_type=None):
@@ -240,6 +243,45 @@ class NeoStore:
         else:
             logging.error("Non-existing start node ID: {start_node_id}".format(start_node_id=start_node_id))
             return False
+
+    def get_main_race_id(self, race_id):
+        """
+        This function will find the main race associated with a race_id. Race_id needs to be the nid of a
+        'Bijwedstrijd'. There is no verification if nid is from race_id, type Bijwedstrijd.
+        @param race_id: nid of the Bijwedstrijd
+        @return: nid of the Hoofdwedstrijd.
+        """
+        query = """
+            MATCH (n:Race {nid:{race_nid}})<-[:has]-(:Organization)-[:has]->(r:Race),
+                  (r)-[:type]->(t:RaceType {name:'Hoofdwedstrijd'})
+            RETURN r.nid as nid
+            """
+        res = self.graph.run(query, race_nid=race_id)
+        try:
+            rec = res.next()
+        except StopIteration:
+            return False
+        return rec["nid"]
+
+    def get_nr_participants(self, race_id, cat):
+        """
+        This function will calculate the number of participants of category cat in race with nid race_id. It is used
+        to calculate points for participants in 'Bijwedstrijd'.
+        :param race_id: nid of the race
+        :param cat: Category name
+        :return: Number of participants. 0 is a valid response.
+        """
+        query = """
+            MATCH (n:Race {nid:{race_nid}})<-[:participates]-(:Participant)<-[:is]-(p:Person),
+                  (p)-[:mf]->(c:MF {name:{cat}})
+            RETURN count(p) as cnt
+        """
+        res = self.graph.run(query, race_nid=race_id, cat=cat)
+        try:
+            rec = res.next()
+        except StopIteration:
+            return False
+        return rec["cnt"]
 
     def get_node(self, *labels, **props):
         """

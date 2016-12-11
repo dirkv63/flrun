@@ -1004,13 +1004,34 @@ def points_bijwedstrijd(race_id):
     # Get min value from hoofdwedstrijd.
     # If found, go to next value (45,40,39, ...)
     # If not found, assign 50.
+    # Count number of Category participants in the Hoofdwedstrijd. This allows to calculate points for the participant.
+    main_race_id = ns.get_main_race_id(race_id)
+    d_parts = ns.get_nr_participants(race_id=main_race_id, cat="Dames")
+    m_parts = ns.get_nr_participants(race_id=main_race_id, cat="Heren")
+    # Todo - Obviously this needs to become a function
+    if d_parts == 0:
+        d_points = 50
+    elif d_parts == 1:
+        d_points = 45
+    else:
+        d_points = 42-d_parts
+    if m_parts == 0:
+        m_points = 50
+    elif m_parts == 1:
+        m_points = 45
+    else:
+        m_points = 42-m_parts
     node_list = ns.get_participant_seq_list(race_id)
-    points = 20
-    for part in node_list:
-        props = dict(nid=part["nid"], points=points)
-        ns.node_update(**props)
+    if node_list:
+        for part in node_list:
+            mf = get_cat4part(part["nid"])
+            if mf == "man":
+                points = m_points
+            else:
+                points = d_points
+            props = dict(nid=part["nid"], points=points)
+            ns.node_update(**props)
     return
-
 
 def points_deelname(race_id):
     """
@@ -1022,9 +1043,10 @@ def points_deelname(race_id):
     """
     node_list = ns.get_participant_seq_list(race_id)
     points = 20
-    for part in node_list:
-        props = dict(nid=part["nid"], points=points)
-        ns.node_update(**props)
+    if node_list:
+        for part in node_list:
+            props = dict(nid=part["nid"], points=points)
+            ns.node_update(**props)
     return
 
 
@@ -1038,18 +1060,19 @@ def points_hoofdwedstrijd(race_id):
     """
     cnt = dict(Dames=0, Heren=0)
     node_list = ns.get_participant_seq_list(race_id)
-    for part in node_list:
-        mf = get_cat4part(part["nid"])
-        cnt[mf] += 1
-        if cnt[mf] == 1:
-            points = 50
-        elif cnt[mf] == 2:
-            points = 45
-        else:
-            points = 43 - cnt[mf]
-        # Set points for participant
-        props = dict(nid=part["nid"], points=points)
-        ns.node_update(**props)
+    if node_list:
+        for part in node_list:
+            mf = get_cat4part(part["nid"])
+            cnt[mf] += 1
+            if cnt[mf] == 1:
+                points = 50
+            elif cnt[mf] == 2:
+                points = 45
+            else:
+                points = 43 - cnt[mf]
+            # Set points for participant
+            props = dict(nid=part["nid"], points=points)
+            ns.node_update(**props)
     return
 
 
