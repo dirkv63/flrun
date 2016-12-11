@@ -101,6 +101,8 @@ class TestModelGraph(unittest.TestCase):
         # Get nid for the person
         person_props = person.props()
         nid = person_props["nid"]
+        # Check person is active
+        self.assertTrue(person.active())
         # Now try to create the person second time
         # This needs to return same nid
         person2 = mg.Person()
@@ -108,8 +110,16 @@ class TestModelGraph(unittest.TestCase):
         person2_props = person2.props()
         nid2 = person2_props["nid"]
         self.assertEqual(nid, nid2)
+        # Now try to get mf label
+        self.assertFalse(person2.get_mf())
+        # Set to 'vrouw'
+        self.assertTrue(person2.set_mf("vrouw"))
+        # Verify it is set to vrouw
+        self.assertEqual(person2.get_mf(), "vrouw")
         # Remove Person again not to disturb other tests...
-        self.ns.remove_node(nid)
+        # Check person is not active
+        self.assertFalse(person2.active())
+        self.ns.remove_node_force(nid2)
 
     def test_class_person_edit(self):
         nid = "0857952c-6a80-438e-b9a0-b25825b70a64"
@@ -120,6 +130,18 @@ class TestModelGraph(unittest.TestCase):
         self.assertTrue(person.edit(**props))
         props2 = person.props()
         self.assertEqual(nid, props2["nid"])
+
+    def test_class_person_m2v(self):
+        # Test get_mf, set from man to vrouw, then back (of course)
+        nid = "f6c70583-6b16-4e28-afb7-3caacc4d4aa8"    # Jan
+        person = mg.Person(person_id=nid)
+        self.assertEqual(person.get_mf(), "man")
+        self.assertTrue(person.set_mf("vrouw"))
+        self.assertEqual(person.get_mf(), "vrouw")
+        self.assertTrue(person.set_mf("man"))
+        self.assertEqual(person.get_mf(), "man")
+        # Return False if set already
+        self.assertFalse(person.set_mf("man"))
 
     def test_class_organization(self):
         # Create New Organization

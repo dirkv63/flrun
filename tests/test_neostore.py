@@ -158,7 +158,7 @@ class TestNeoStore(unittest.TestCase):
 
     def test_get_nodes(self):
         # Return list of all nodes
-        self.assertEqual(len(self.ns.get_nodes()), 130)
+        self.assertEqual(len(self.ns.get_nodes()), 132)
         # Return list of all Races
         label = "Race"
         self.assertEqual(len(self.ns.get_nodes(label)), 18)
@@ -310,22 +310,22 @@ class TestNeoStore(unittest.TestCase):
         my_props = self.ns.node_props(nid)
         self.assertEqual(my_props["name"], "Dirk Vermeylen")
         self.assertEqual(my_props["nid"], nid)
-        mf_orig = my_props["mf"]
-        mf_upd = "kweenie"
+        name_orig = my_props["name"]
+        name_upd = "kweenie"
         add_attrib = "add_attrib"
-        my_props["mf"] = mf_upd
+        my_props["name"] = name_upd
         my_props[add_attrib] = add_attrib
         self.ns.node_update(**my_props)
         my_props = self.ns.node_props(nid)
-        self.assertEqual(my_props["name"], "Dirk Vermeylen")
-        self.assertEqual(my_props["mf"], mf_upd)
+        self.assertEqual(my_props["name"], name_upd)
         self.assertEqual(my_props["nid"], nid)
-        self.assertEqual(len(my_props), 5)
-        my_props["mf"] = mf_orig
+        self.assertEqual(len(my_props), 4)
+        my_props["name"] = name_orig
         del my_props[add_attrib]
         self.ns.node_update(**my_props)
         my_props = self.ns.node_props(nid)
-        self.assertEqual(len(my_props), 4)
+        self.assertEqual(len(my_props), 3)
+        self.assertEqual(my_props["name"], "Dirk Vermeylen")
         # Remove nid from my_props, Test on node_update return False
         del my_props["nid"]
         self.assertFalse(self.ns.node_update(**my_props))

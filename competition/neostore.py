@@ -98,9 +98,9 @@ class NeoStore:
     def create_relation(self, from_node=None, rel=None, to_node=None):
         """
         Function to create relationship between nodes.
-        @param from_node:
-        @param rel:
-        @param to_node:
+        @param from_node: Start node for the relation
+        @param rel: Relation type
+        @param to_node: End node for the relation
         @return:
         """
         rel = Relationship(from_node, rel, to_node)
@@ -205,6 +205,17 @@ class NeoStore:
             logging.error("Non-existing start node ID: {start_node_id}".format(start_node_id=start_node_id))
             return False
 
+    def get_cat4part(self, part_nid):
+        """
+        This method will return category for the participant. Category will be 'Dames' or 'Heren'.
+        @param part_nid: Nid of the participant node.
+        @return: Category (Dames or Heren), or False if no category could be found.
+        """
+        query = "MATCH (n:Participant)<-[:is]-()-[:mf]->(c:MF) WHERE n.nid='{p}' RETURN c.name as name"
+        res = self.graph.run(query.format(p=part_nid))
+        rec = res.next()
+        return rec["name"]
+
     def get_end_nodes(self, start_node_id=None, rel_type=None):
         """
         This method will calculate all end nodes from a start Node ID and a relation type. If relation type is not
@@ -235,7 +246,7 @@ class NeoStore:
         This method will select a single (or first) node that have labels and properties
         @param labels:
         @param props:
-        @return: list of nodes that fulfill the criteria
+        @return: node that fulfills the criteria
         """
         nodes = self.get_nodes(*labels, **props)
         if not nodes:

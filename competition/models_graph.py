@@ -15,11 +15,13 @@ class Participant:
         If race id and person id are provided, then try to find participant id. If not successful, then create
         participant id.
         At the end of initialization, participant node, id, race id and person id are set.
+        When a participant is added or deleted, then the points for the race will be recalculated.
         @param part_id: nid of the participant
         @param race_id: nid of the race
         @param pers_id: nid of the person
         @return: Participant object with participant node and nid, race nid and person nid are set.
         """
+        # Todo: rework classes so that objects are kept, not nids - replace race_nid with race_obj, ...
         self.part_node = None
         self.part_id = -1           # Unique ID (nid) of the Participant node
         if part_id:
@@ -91,6 +93,7 @@ class Participant:
         Check if there is a next participant for this participant, so if current runner enters an existing sequence.
         Create the person participant node only when the relations are known. Otherwise the new participant node can
         conflict with the sequence asked for.
+        Recalculate points for the race.
         @param prev_pers_id: Node ID of the previous person, or None if the person is the first arrival.
         @return:
         """
@@ -151,6 +154,7 @@ class Participant:
     def remove(self):
         """
         This method will remove the participant from the race.
+        Recalculate points for the race.
         @return:
         """
         if self.prev_runner() and self.next_runner():
@@ -165,6 +169,8 @@ class Participant:
 
 
 class Person:
+    # Todo: add a person.remove() method: remove MF link, check no participant links available.
+
     def __init__(self, person_id=None):
         if person_id:
             self.person_id, self.name = self.set(person_id)
@@ -214,6 +220,7 @@ class Person:
         @param properties: New set of properties for the node
         @return: True - in case node is rewritten successfully.
         """
+        logging.fatal("Look here, properties: {p}".format(p=properties))
         properties["nid"] = self.person_id
         ns.node_update(**properties)
         return True
@@ -237,12 +244,59 @@ class Person:
     def get(self):
         return self.name
 
+    def get_mf(self):
+        """
+        This method will get 'MF' link for the person, and translates the value to 'man' or 'vrouw'.
+        :return: 'man', 'vrouw' or 'False' in case 'MF' is not set.
+        """
+        mf_tx = dict(Heren="man", Dames="vrouw")
+        mf_node_id = ns.get_end_node(start_node_id=self.person_id, rel_type="mf")
+        if mf_node_id:
+            mf_node = ns.node(mf_node_id)
+            return mf_tx[mf_node["name"]]
+        else:
+            return False
+
+    def active(self):
+        """
+        This method will check if a person is active. For now, this means that a person has 'participates' links.
+        If the person is not active, then the person can be removed.
+        @return: True if the person is active, False otherwise
+        """
+        return ns.get_end_nodes(start_node_id=self.person_id, rel_type="is")
+
     def props(self):
         """
         This method will return the properties for the node in a dictionary format.
         @return:
         """
         return ns.node_props(nid=self.person_id)
+
+    def set_mf(self, mf_label):
+        """
+        This method will set 'MF' link for the person. It will check if a link exists already. If not, then link
+        will be created. If link exists, but invalid link then required link will be created and invalid link will
+        be removed.
+        @param mf_label: Label to set (man/vrouw)
+        @return:
+        """
+        mf_inv_tx = dict(man="Heren", vrouw="Dames")
+        current_mf = self.get_mf()
+        if current_mf:
+            if current_mf == mf_label:
+                # OK, required link exists already. Return
+                return False
+            else:
+                # The opposite link exists. Remove it.
+                props = dict(name=mf_inv_tx[current_mf])
+                mf_node = ns.get_node("MF", **props)
+                ns.remove_relation(start_nid=self.person_id, end_nid=mf_node["nid"], rel_type="mf")
+        # On this point I'm sure no relation exists
+        person_node = ns.node(self.person_id)
+        props = dict(name=mf_inv_tx[mf_label])
+        mf_node = ns.get_node("MF", **props)
+        ns.create_relation(from_node=person_node, rel="mf", to_node=mf_node)
+        return True
 
 
 class Organization:
@@ -676,6 +730,15 @@ class Race:
         """
         return self.name
 
+    def get_racetype(self):
+        """
+        This method will return type of the race.
+        @return: Type of the race: Hoofdwedstrijd, Bijwedstrijd or Deelname
+        """
+        racetype_node_id = ns.get_end_node(start_node_id=self.race_id, rel_type="type")
+        racetype_node = ns.node(racetype_node_id)
+        return racetype_node["name"]
+
     def set_label(self):
         """
         This method will set the label for the race. Assumptions are that the race name and the organization ID are set
@@ -883,6 +946,7 @@ def person_list():
     for node in res:
         attribs = [node["nid"], node["name"]]
         person_arr.append(attribs)
+    person_arr.sort(key=lambda x: x[1])
     return person_arr
 
 
@@ -920,11 +984,80 @@ def participant_list(race_id):
     return part_arr
 
 
+def get_cat4part(part_nid):
+    """
+    This method will return category for the participant. Category will be 'Dames' or 'Heren'.
+    @param part_nid: Nid of the participant node.
+    @return: Category (Dames or Heren), or False if no category could be found.
+    """
+    return ns.get_cat4part(part_nid)
+
+
+def points_bijwedstrijd(race_id):
+    """
+    This method will assign points to participants in a race for type 'Bijwedstrijd'. It will add 'bijwedstrijd' points
+    to every participant. Participant list is sufficient, sequence list is not required. But this function does not
+    exist (I think).
+    :param race_id:
+    :return:
+    """
+    # Get min value from hoofdwedstrijd.
+    # If found, go to next value (45,40,39, ...)
+    # If not found, assign 50.
+    node_list = ns.get_participant_seq_list(race_id)
+    points = 20
+    for part in node_list:
+        props = dict(nid=part["nid"], points=points)
+        ns.node_update(**props)
+    return
+
+
+def points_deelname(race_id):
+    """
+    This method will assign points to participants in a race for type 'Deelname'. It will add 'deelname' points to
+    every participant. Participant list is sufficient, sequence list is not required. But this function does not
+    exist (I think).
+    :param race_id:
+    :return:
+    """
+    node_list = ns.get_participant_seq_list(race_id)
+    points = 20
+    for part in node_list:
+        props = dict(nid=part["nid"], points=points)
+        ns.node_update(**props)
+    return
+
+
+def points_hoofdwedstrijd(race_id):
+    """
+    This method will assign points to participants in a race. It gets the participant nids in sequence of arrival. For
+    each participant, it will extract Category (Dames, Heren) then assign points for the participant.
+    This method should be called for 'Hoofdwedstrijd' only.
+    :param race_id:
+    :return:
+    """
+    cnt = dict(Dames=0, Heren=0)
+    node_list = ns.get_participant_seq_list(race_id)
+    for part in node_list:
+        mf = get_cat4part(part["nid"])
+        cnt[mf] += 1
+        if cnt[mf] == 1:
+            points = 50
+        elif cnt[mf] == 2:
+            points = 45
+        else:
+            points = 43 - cnt[mf]
+        # Set points for participant
+        props = dict(nid=part["nid"], points=points)
+        ns.node_update(**props)
+    return
+
+
 def participant_seq_list(race_id):
     """
     This method will collect the people in a race in sequence of arrival.
     @param race_id: nid of the race for which the participants are returned in sequence of arrival.
-    @return: List of names of the participant items in the race. Each item is a list of person nid and the person name.
+    @return: List of participant items in the race. Each item is a list of person nid and the person name.
     False if no participants in the list.
     """
     node_list = ns.get_participant_seq_list(race_id)
@@ -1036,11 +1169,20 @@ def relations(node_id):
 
 def remove_node(node_id):
     """
-    This function will remove the node with node ID node_id
+    This function will remove the node with node ID node_id, on condition that there are no more relations to the node.
     @param node_id:
-    @return:
+    @return: True if node is deleted, False otherwise
     """
     return ns.remove_node(node_id)
+
+
+def remove_node_force(node_id):
+    """
+    This function will remove the node with node ID node_id, including relations with the node.
+    @param node_id:
+    @return: True if node is deleted, False otherwise
+    """
+    return ns.remove_node_force(node_id)
 
 
 def set_race_type(race_id=None, race_type_node=None):

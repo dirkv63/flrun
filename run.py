@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-import logging
+# import logging
 from competition import create_app, db
 from competition.models_sql import User
-from lib import my_env
+# from lib import my_env
 
 
 # Run Application

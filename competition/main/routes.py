@@ -43,7 +43,7 @@ def person_add(person_id=None):
             person = mg.Person(person_id=person_id)
             person_dict = person.props()
             name = person_dict['name']
-            mf = person_dict['mf']
+            mf = person.get_mf()
             form = PersonAdd(mf=mf)
             form.name.data = name
             if 'born' in person_dict:
@@ -57,18 +57,22 @@ def person_add(person_id=None):
         form = PersonAdd()
         name = None
         if form.validate_on_submit():
-            person_dict = dict(name=form.name.data, mf=form.mf.data)
+            person_dict = dict(name=form.name.data)
+            person_mf = form.mf.data
             if form.born.data:
-                person_dict['born'] = form.born.data
+                person_dict['born'] = form.born.data.strftime('%Y-%m-%d')
             name = person_dict['name']
             if person_id:
                 # This is from person edit function
                 current_app.logger.debug("Person Dictionary: {person_dict}".format(person_dict=person_dict))
                 person = mg.Person(person_id=person_id)
                 person.edit(**person_dict)
+                person.set_mf(person_mf)
             else:
                 person = mg.Person()
-                if not person.add(**person_dict):
+                if person.add(**person_dict):
+                    person.set_mf(person_mf)
+                else:
                     flash(name + ' bestaat reeds, niet toegevoegd.', "warning")
             return redirect(url_for('main.person_add'))
     persons = mg.person_list()
@@ -97,7 +101,7 @@ def person_list():
 @main.route('/person/<pers_id>')
 def person_summary(pers_id):
     """
-    This method provides all information about a single participant. In case this is an 'isolated' person
+    This method provides all information about a single person. In case this is an 'isolated' person
     (this means without link to races), then a 'Verwijder' (delete) button will be shown.
     :param pers_id: ID of the Participant for which overview info is required.
     :return:
@@ -106,9 +110,9 @@ def person_summary(pers_id):
     part.set(pers_id)
     part_name = part.get()
     races = mg.races4person(pers_id)
-    # Don't count on len(races), since this is this competition races. Remove person only if not used across all
+    # Don't count on len(races), since this is competition races. Remove person only if not used across all
     # competitions.
-    if mg.relations(pers_id):
+    if part.active():
         conns = 1
     else:
         conns = 0
@@ -126,13 +130,14 @@ def person_delete(pers_id):
     :param pers_id:
     :return:
     """
-    part = mg.Person()
-    part.set(pers_id)
+    person = mg.Person()
+    person.set(pers_id)
     # part_name = part.get_name()
-    if mg.relations(pers_id):
-        current_app.logger.warning("Request to delete id {pers_id} but relations found".format(pers_id=pers_id))
+    if person.active():
+        current_app.logger.warning("Request to delete id {pers_id} but person participates in races"
+                                   .format(pers_id=pers_id))
     else:
-        mg.remove_node(pers_id)
+        mg.remove_node_force(pers_id)
     return redirect(url_for('main.person_list'))
 
 
