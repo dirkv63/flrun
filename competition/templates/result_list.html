@@ -1,0 +1,24 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros %}
+
+{% block page_content %}
+<div class="row">
+    <div class="col-md-3">
+        <h3>Overzicht Resultaten</h3>
+        <table class="table table-hover">
+            <tr>
+                <th>Naam</th>
+                <th>Punten</th>
+                <th>Aantal</th>
+            </tr>
+            {% for row in result_set %}
+            <tr>
+                <td>{{ row[0] }}</td>
+                <td>{{ row[1] }}</td>
+                <td>{{ row[2] }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        </div>
+</div>
+{% endblock %}

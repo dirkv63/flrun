@@ -421,6 +421,12 @@ def hoofdwedstrijd_set(org_id, race_id):
     return redirect(url_for('main.race_list', org_id=org_id))
 
 
+@main.route('/result', methods=['GET'])
+def results():
+    result_set = mg.results_for_category("Heren")
+    return render_template("result_list.html", result_set=result_set)
+
+
 @main.errorhandler(404)
 def not_found(e):
     return render_template("404.html", err=e)

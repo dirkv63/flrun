@@ -993,6 +993,24 @@ def get_cat4part(part_nid):
     return ns.get_cat4part(part_nid)
 
 
+def points_position(pos):
+    """
+    This method will return points for a specific position.
+    Points are in sequence of arrival: 50 - 45 - 40 - 39 - 38 - ...
+    :param pos: Position in the race
+    :return: Points associated for this position. Minimum is one point.
+    """
+    if pos == 1:
+        points = 50
+    elif pos == 2:
+        points = 45
+    else:
+        points = 43-pos
+    if points < 1:
+        points = 1
+    return points
+
+
 def points_bijwedstrijd(race_id):
     """
     This method will assign points to participants in a race for type 'Bijwedstrijd'. It will add 'bijwedstrijd' points
@@ -1004,23 +1022,15 @@ def points_bijwedstrijd(race_id):
     # Get min value from hoofdwedstrijd.
     # If found, go to next value (45,40,39, ...)
     # If not found, assign 50.
-    # Count number of Category participants in the Hoofdwedstrijd. This allows to calculate points for the participant.
+    # Count number of Category participants in the Hoofdwedstrijd. Points for participant is next available one, after
+    # all participants on main race have been calculated.
+    # This allows to calculate points for the participant.
     main_race_id = ns.get_main_race_id(race_id)
     d_parts = ns.get_nr_participants(race_id=main_race_id, cat="Dames")
     m_parts = ns.get_nr_participants(race_id=main_race_id, cat="Heren")
-    # Todo - Obviously this needs to become a function
-    if d_parts == 0:
-        d_points = 50
-    elif d_parts == 1:
-        d_points = 45
-    else:
-        d_points = 42-d_parts
-    if m_parts == 0:
-        m_points = 50
-    elif m_parts == 1:
-        m_points = 45
-    else:
-        m_points = 42-m_parts
+    d_points = points_position(d_parts+1)
+    m_points = points_position(m_parts+1)
+    # Now add points for everyone in the race.
     node_list = ns.get_participant_seq_list(race_id)
     if node_list:
         for part in node_list:
@@ -1029,22 +1039,6 @@ def points_bijwedstrijd(race_id):
                 points = m_points
             else:
                 points = d_points
-            props = dict(nid=part["nid"], points=points)
-            ns.node_update(**props)
-    return
-
-def points_deelname(race_id):
-    """
-    This method will assign points to participants in a race for type 'Deelname'. It will add 'deelname' points to
-    every participant. Participant list is sufficient, sequence list is not required. But this function does not
-    exist (I think).
-    :param race_id:
-    :return:
-    """
-    node_list = ns.get_participant_seq_list(race_id)
-    points = 20
-    if node_list:
-        for part in node_list:
             props = dict(nid=part["nid"], points=points)
             ns.node_update(**props)
     return
@@ -1064,16 +1058,72 @@ def points_hoofdwedstrijd(race_id):
         for part in node_list:
             mf = get_cat4part(part["nid"])
             cnt[mf] += 1
-            if cnt[mf] == 1:
-                points = 50
-            elif cnt[mf] == 2:
-                points = 45
-            else:
-                points = 43 - cnt[mf]
+            points = points_position(cnt[mf])
             # Set points for participant
             props = dict(nid=part["nid"], points=points)
             ns.node_update(**props)
     return
+
+
+def points_deelname(race_id):
+    """
+    This method will assign points to participants in a race for type 'Deelname'. It will add 'deelname' points to
+    every participant. Participant list is sufficient, sequence list is not required. But this function does not
+    exist (I think).
+    :param race_id:
+    :return:
+    """
+    node_list = ns.get_participant_seq_list(race_id)
+    points = 20
+    if node_list:
+        for part in node_list:
+            props = dict(nid=part["nid"], points=points)
+            ns.node_update(**props)
+    return
+
+
+def sum_points(point_list):
+    """
+    This function will calculate the total of the points for this participant. For now, the sum of all points is
+    calculated.
+    :param point_list: list of the points for the participant.
+    :return: sum of the points
+    """
+    nr_races = 7
+    add_points_per_race = 5
+    max_list = sorted(point_list)[-nr_races:]
+    if len(point_list) > nr_races:
+        add_points = (len(point_list) - nr_races) * add_points_per_race
+    else:
+        add_points = 0
+    points = sum(max_list) + add_points
+    return points
+
+
+def results_for_category(cat):
+    """
+    This method will calculate the points for all participants in a category.
+    :param cat: Category to calculate the points
+    :return: Sorted list with tuples (name, points, number of races).
+    """
+    # For neostore function!
+    # query = "match (c:MF {name:{cat})<-[:mf]-(n:Person)-[:is]->(p) return n.name, p.points"
+    # Get list back, then process here:
+    res = ns.points_per_category(cat)
+    # 1. Add points to list per person
+    result_list = {}
+    result_total = []
+    while res.forward():
+        rec = res.current()
+        try:
+            result_list[rec["name"]].append(rec["points"])
+        except KeyError:
+            result_list[rec["name"]] = [rec["points"]]
+    # 2. Calculate points per person
+    for name in result_list:
+        result_total.append([name, sum_points(result_list[name]), len(result_list[name])])
+    result_sorted = sorted(result_total, key=lambda x: -x[1])
+    return result_sorted
 
 
 def participant_seq_list(race_id):

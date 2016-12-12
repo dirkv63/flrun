@@ -85,6 +85,7 @@ class DataStore:
              month integer,
              name text,
              nid text unique not null,
+             points integer,
              weight text,
              year integer
             )

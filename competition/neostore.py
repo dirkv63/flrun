@@ -441,6 +441,16 @@ class NeoStore:
             return False
         return rec["nodes(result)"]
 
+    def points_per_category(self, cat):
+        """
+        Query to get points per category for every participant.
+        :param cat:
+        :return:
+        """
+        query = "match (c:MF {name:{cat}})<-[:mf]-(n:Person)-[:is]->(p) return n.name as name, p.points as points"
+        res = self.graph.run(query, cat=cat)
+        return res
+
     def get_race_in_org(self, org_id, racetype_id, name):
         """
         This function will find a race of a specific type in an organization. It will return the race attributes if a

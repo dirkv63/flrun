@@ -101,8 +101,8 @@ class TestModelGraph(unittest.TestCase):
         # Get nid for the person
         person_props = person.props()
         nid = person_props["nid"]
-        # Check person is active
-        self.assertTrue(person.active())
+        # Check person is active - not active since no races attached.
+        self.assertFalse(person.active())
         # Now try to create the person second time
         # This needs to return same nid
         person2 = mg.Person()

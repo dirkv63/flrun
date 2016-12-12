@@ -70,11 +70,11 @@ node.Race {
 }
 
 node.Participant {
-  color: #68BDF6;
-  border-color: #5CA8DB;
+  color: #6DCE9E;
+  border-color: #60B58B;
   text-color-internal: #FFFFFF;
-  caption: '<id>';
-  diameter: 10px;
+  caption: '{points}';
+  diameter: 20px;
 }
 
 node.OrgType {
@@ -103,5 +103,12 @@ node.Test {
   border-color: #E0849B;
   text-color-internal: #FFFFFF;
   caption: '{nid}';
+}
+
+node.MF {
+  color: #FF756E;
+  border-color: #E06760;
+  text-color-internal: #FFFFFF;
+  caption: '{name}';
 }
 
