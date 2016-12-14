@@ -25,7 +25,8 @@ def login():
 
 @main.route('/')
 def index():
-    return render_template('index.html')
+    # return render_template('index.html')
+    return redirect(url_for('main.organization_list'))
 
 
 @main.route('/logout')
@@ -94,7 +95,7 @@ def person_edit(pers_id):
 
 @main.route('/person/list')
 def person_list():
-    persons = mg.person_list()
+    persons = mg.person_list(nr_races=True)
     return render_template('person_list.html', persons=persons)
 
 
@@ -144,7 +145,6 @@ def person_delete(pers_id):
 @main.route('/organization/list')
 def organization_list():
     organizations = mg.organization_list()
-    current_app.logger.debug(organizations)
     return render_template('organization_list.html', organizations=organizations)
 
 
@@ -355,41 +355,45 @@ def participant_add(race_id):
         return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.
-        current_app.logger.debug("Initialize page")
+        # current_app.logger.debug("Initialize page")
+        org_id = mg.get_org_id(race_id)
         part_last = mg.participant_last_id(race_id)
         form = ParticipantAdd(prev_runner=part_last)
         form.name.choices = mg.next_participant(race_id)
         form.prev_runner.choices = mg.participant_after_list(race_id)
-        finishers = mg.participant_seq_list(race_id)
-        if len(finishers):
+        finishers = mg.participant_seq_list(race_id, add_points=True)
+        if finishers:
             remove_race = "No"
         else:
             remove_race = "Yes"
         return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers,
-                               race_label=race_label, remove_race=remove_race)
+                               race_label=race_label, remove_race=remove_race, org_id=org_id)
 
 
 @main.route('/participant/remove/<race_id>/<pers_id>', methods=['GET', 'POST'])
 @login_required
 def participant_remove(race_id, pers_id):
     """
-    This method will remove the participant from the race.
+    This method will remove the participant from the race and return to the race.
+    Ask for confirmation is not done (anymore).
     :param race_id: ID of the race. This can be calculated, but it is always available.
     :param pers_id: Node ID of the participant in the race.
     :return:
+    """
     """
     person = mg.Person(person_id=pers_id)
     person_name = person.get()
     form = ParticipantRemove()
     race_label = mg.race_label(race_id)
-    finishers = mg.participant_seq_list(race_id)
+    finishers = mg.participant_seq_list(race_id, add_points=True)
     if request.method == "GET":
         return render_template('participant_remove.html', form=form, race_id=race_id, finishers=finishers,
                                race_label=race_label, pers_label=person_name)
     elif request.method == "POST":
         if form.submit_ok.data:
-            part = mg.Participant(race_id=race_id, pers_id=pers_id)
-            part.remove()
+    """
+    part = mg.Participant(race_id=race_id, pers_id=pers_id)
+    part.remove()
     return redirect(url_for('main.participant_add', race_id=race_id))
 
 
@@ -421,10 +425,10 @@ def hoofdwedstrijd_set(org_id, race_id):
     return redirect(url_for('main.race_list', org_id=org_id))
 
 
-@main.route('/result', methods=['GET'])
-def results():
-    result_set = mg.results_for_category("Heren")
-    return render_template("result_list.html", result_set=result_set)
+@main.route('/result/<cat>', methods=['GET'])
+def results(cat):
+    result_set = mg.results_for_category(cat)
+    return render_template("result_list.html", result_set=result_set, cat=cat)
 
 
 @main.errorhandler(404)

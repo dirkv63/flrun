@@ -32,7 +32,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    LOGLEVEL = "debug"
+    LOGLEVEL = "info"
     # SERVER_NAME = '0.0.0.0:5012'
     SERVER_NAME = 'localhost:5012'
     SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(os.path.dirname(__file__), "../data-dev.sqlite3")

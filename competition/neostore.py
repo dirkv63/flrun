@@ -19,7 +19,6 @@ class NeoStore:
         Method to instantiate the class in an object for the neostore.
         @return: Object to handle neostore commands.
         """
-        logging.debug("Initializing Neostore object")
         self.graph = self._connect2db()
         self.calendar = GregorianCalendar(self.graph)
         self.selector = NodeSelector(self.graph)
@@ -31,11 +30,10 @@ class NeoStore:
         Internal method to create a database connection. This method is called during object initialization.
         @return: Database handle and cursor for the database.
         """
-        logging.debug("Creating Neostore object.")
         neo4j_params = {
             'user': "neo4j",
             'password': "_m8z8IpJUPyR",
-            'db': "stratenloop15.db"
+            'db': "stratenloop16.db"
         }
         neo4j_config = {
             'user': neo4j_params['user'],
@@ -182,8 +180,6 @@ class NeoStore:
         @param rel_type: Relation type
         @return: Node ID (integer) of the end Node, or False.
         """
-        logging.debug("Find End Node. Start node ID: {node_id}, Relation Type: {rel_type}"
-                      .format(node_id=start_node_id, rel_type=rel_type))
         # First get Node from end node ID
         start_node = self.node(start_node_id)
         if start_node:
@@ -228,8 +224,6 @@ class NeoStore:
         @param rel_type: Relation type
         @return: List with Node IDs (integers) of the end Nodes, or False.
         """
-        logging.debug("Find End Nodes. Start Node ID: {node_id}, Relation Type: {rel_type}"
-                      .format(node_id=start_node_id, rel_type=rel_type))
         # First get Node from end node ID
         start_node = self.node(start_node_id)
         if start_node:
@@ -307,7 +301,6 @@ class NeoStore:
         @return: list of nodes that fulfill the criteria
         """
         nodes = self.selector.select(*labels, **props)
-        logging.debug("In get_nodes, looking for {l} and {p} - res: {r} ".format(r=list(nodes), l=labels, p=props))
         return list(nodes)
 
     def get_nodes_no_nid(self):
@@ -320,7 +313,6 @@ class NeoStore:
         res = self.graph.run(query)
         cnt = 0
         for rec in res:
-            logging.debug("Set nid for Node ID: {nid}".format(nid=rec["node_id"]))
             self.set_node_nid(node_id=rec["node_id"])
             cnt += 1
         return cnt
@@ -339,6 +331,8 @@ class NeoStore:
               (org)-[:In]->(loc:Location {city: {location}})
         RETURN org
         """
+        if not isinstance(org_dict["datestamp"], str):
+            org_dict["datestamp"] = org_dict["datestamp"].strftime("%Y-%m-%d")
         cursor = self.graph.run(query, name=org_dict["name"], location=org_dict["location"],
                                 datestamp=org_dict["datestamp"])
         org_list = nodelist_from_cursor(cursor)
@@ -392,6 +386,9 @@ class NeoStore:
             ORDER BY day.key ASC
         """
         res = self.graph.run(query).data()
+        # Convert date key from YYYY-MM-DD to DD-MM-YYYY
+        for rec in res:
+            rec["date"] = datetime.strptime(rec["date"], "%Y-%m-%d").strftime("%d-%m-%Y")
         return res
 
     def get_participant_in_race(self, pers_id=None, race_id=None):
@@ -413,8 +410,6 @@ class NeoStore:
             logging.error("More than one ({nr}) Participant node for Person {pnid} and Race {rnid}"
                           .format(pnid=pers_id, rnid=race_id, nr=len(nodes)))
         elif len(nodes) == 0:
-            logging.debug("No Participant node for Person {pnid} and Race {rnid}"
-                          .format(pnid=pers_id, rnid=race_id))
             return False
         return nodes[0]
 
@@ -467,7 +462,6 @@ class NeoStore:
           AND race.name='{name}'
         RETURN race.nid as race_nid, org.name as org_name
         """.format(org_id=org_id, racetype=racetype_id, name=name)
-        logging.debug("Query: {query}".format(query=query))
         race_cursor = self.graph.run(query)
         try:
             race_data = next(race_cursor)
@@ -550,8 +544,6 @@ class NeoStore:
         @param rel_type: Relation type
         @return: Node nid of the start Node, or False.
         """
-        logging.debug("Find Start Node. End Node ID: {node_id}, Relation Type: {rel_type}"
-                      .format(node_id=end_node_id, rel_type=rel_type))
         # First get Node from end node ID
         end_node = self.node(end_node_id)
         if end_node:
@@ -581,8 +573,6 @@ class NeoStore:
         @param rel_type: Relation type
         @return: List with Node IDs (integers) of the start Node, or False.
         """
-        logging.debug("Find Start Nodes. End Node ID: {node_id}, Relation Type: {rel_type}"
-                      .format(node_id=end_node_id, rel_type=rel_type))
         # First get Node from end node ID
         end_node = self.node(end_node_id)
         if end_node:
@@ -696,7 +686,6 @@ class NeoStore:
         """
         my_node = self.node(nid)
         if my_node:
-            logging.debug("Node Properties: {props}".format(props=dict(my_node)))
             return dict(my_node)
         else:
             logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
@@ -743,10 +732,7 @@ class NeoStore:
         obj_node = self.node(nid)
         if obj_node:
             if obj_node.degree():
-                logging.debug("Relations found")
                 return obj_node.degree()
-            else:
-                logging.debug("No Relations found")
         else:
             logging.error("ID {id} cannot be bound to a node".format(id=nid))
         return False
@@ -777,7 +763,6 @@ class NeoStore:
         @param nid: nid of the node
         @return: True if node is deleted, False otherwise
         """
-        logging.debug("Trying to remove node with nid {nid}".format(nid=nid))
         query = "MATCH (n) WHERE n.nid={nid} DETACH DELETE n"
         self.graph.run(query, nid=nid)
         return True
@@ -797,7 +782,6 @@ class NeoStore:
               AND end_node.nid='{end_nid}'
             DELETE rel_type
         """.format(rel_type=rel_type, start_nid=start_nid, end_nid=end_nid)
-        logging.debug("Remove Relation: {q}".format(q=query))
         self.graph.run(query)
         return
 
@@ -829,6 +813,7 @@ def nodelist_from_cursor(cursor):
 
 def validate_node(node, label):
     """
+    BE CAREFUL: has_label does not always work for unknown reason.
     This function will check if a node is of a specific type, so it will check if the node has the label.
     @param node: Node to check
     @param label: Label that needs to be in the node.
@@ -837,5 +822,4 @@ def validate_node(node, label):
     if type(node) is Node:
         return node.has_label(label)
     else:
-        logging.debug("Object not of type Node (type: {t}) while checking for label {l}".format(t=type(node), l=label))
         return False

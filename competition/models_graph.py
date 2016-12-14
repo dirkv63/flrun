@@ -13,7 +13,7 @@ class Participant:
         A Participant Object is the path: (person)-[:is]->(participant)-[:participates]->(race).
         If participant id is provided, then find race id and person id.
         If race id and person id are provided, then try to find participant id. If not successful, then create
-        participant id.
+        participant id. The application must call the 'add' method to add this participant in the correct sequence.
         At the end of initialization, participant node, id, race id and person id are set.
         When a participant is added or deleted, then the points for the race will be recalculated.
         @param part_id: nid of the participant
@@ -25,14 +25,12 @@ class Participant:
         self.part_node = None
         self.part_id = -1           # Unique ID (nid) of the Participant node
         if part_id:
-            logging.debug("Set Participant with ID: {part_id}".format(part_id=part_id))
+            # I have a participant ID, find race and person information
             self.part_node = ns.node(part_id)
             self.part_id = part_id
             self.race_id = ns.get_end_node(start_node_id=part_id, rel_type="participates")
             self.pers_id = ns.get_start_node(end_node_id=part_id, rel_type="is")
         elif pers_id and race_id:
-            logging.debug(("Trying to get Participant in race for pers {p} and race {r}"
-                           .format(p=pers_id, r=race_id)))
             self.race_id = race_id
             self.pers_id = pers_id
             self.part_node = ns.get_participant_in_race(pers_id=pers_id, race_id=race_id)
@@ -40,6 +38,8 @@ class Participant:
                 self.part_id = self.part_node["nid"]
             else:
                 # Participant node not found, so create one.
+                # First remember first arrival in the race
+                self.first_arrival_in_race = participant_first_id(race_id)
                 self.part_id = self.set_part_race()
         else:
             logging.fatal("No input provided.")
@@ -79,10 +79,53 @@ class Participant:
         prev_part_node = ns.node(prev_id)
         next_part_node = ns.node(next_id)
         if neostore.validate_node(prev_part_node, "Participant") \
-                and neostore.validate_node(next_part_node, "Participant"):
+            and neostore.validate_node(next_part_node, "Participant"):
             ns.create_relation(from_node=next_part_node, rel="after", to_node=prev_part_node)
+        return
 
     def add(self, prev_pers_id=None):
+        """
+        This method will add the participant in the chain of arrivals. This is required only if there is more than one
+        participant in the race.
+        First action will be determined, then the action will be executed.
+        Is there a previous arrival (prev_pers_id) for this runner? Remember nid for previous arrival. Else this
+        participant is the first arrival.
+        Is there a next arrival for this runner? Remove relation between previous and next, remember next.
+        Now link current participant to previous arrival and to next arrival.
+        :param prev_pers_id: nid of previous arrival, or -1 if current participant in first arrival
+        :return:
+        """
+        # Count total number of arrivals. Process required only if there is more than one.
+        nr_participants = len(participant_list(self.race_id))
+        if nr_participants > 1:
+            # Process required only if there is more than one participant in the race
+            if prev_pers_id != "-1":
+                # There is an arrival before current participant
+                # Find participant nid for this person
+                prev_arrival_obj = Participant(race_id=self.race_id, pers_id=prev_pers_id)
+                prev_arrival_nid = prev_arrival_obj.get_id()
+                # This can be linked to a next_arrival. Current participant will break this link
+                next_arrival_nid = prev_arrival_obj.next_runner()
+                if next_arrival_nid:
+                    ns.remove_relation(start_nid=next_arrival_nid, end_nid=prev_pers_id, rel_type="after")
+            else:
+                # This participant is the first one in the race. Find the next participant.
+                # Be careful, method 'participant_first_id' requires valid chain. So this needs to run before
+                # set_part_race()
+                prev_arrival_nid = False
+                # Get participant nid for person nid first arrival.
+                next_arrival_obj = Participant(race_id=self.race_id, pers_id=self.first_arrival_in_race)
+                next_arrival_nid = next_arrival_obj.get_id()
+            # Previous and next arrival have been calculated, create relation if required
+            if prev_arrival_nid:
+                self.set_relation(next_id=self.part_id, prev_id=prev_arrival_nid)
+            if next_arrival_nid:
+                self.set_relation(next_id=next_arrival_nid, prev_id=self.part_id)
+        # Calculate points after adding participant
+        points_for_race(self.race_id)
+        return
+
+    def tobedeleted_add(self, prev_pers_id=None):
         """
         This function will add the participant in the sequence of participants. The participant's predecessor is known.
         Possibilities:
@@ -97,13 +140,18 @@ class Participant:
         @param prev_pers_id: Node ID of the previous person, or None if the person is the first arrival.
         @return:
         """
-        logging.debug("Add person {id} to previous person {prev_id} for race {race_id}"
-                      .format(id=self.pers_id, prev_id=prev_pers_id, race_id=self.race_id))
-        if prev_pers_id:
-            logging.debug("Before create object for previous participant")
+        if prev_pers_id == -1:
+            # No previous participant. Find nid for current first participant in race
+            # If found: Add link between the new participant and next_participant.
+            first_person_id = participant_first_id(self.race_id)
+            if first_person_id:
+                first_part = Participant(race_id=self.race_id, pers_id=first_person_id)
+                first_part_id = first_part.get_id()
+                # Create the participant node for this person
+                self.set_relation(prev_id=self.part_id, next_id=first_part_id)
+        else:
             prev_part = Participant(pers_id=prev_pers_id, race_id=self.race_id)
             prev_part_id = prev_part.get_id()
-            logging.debug("Object for prev_part is created")
             if prev_part.next_runner():
                 # The previous runner for this participant was not the last one so far in the race.
                 # Get next runner to assign as next runner for participant.
@@ -118,15 +166,7 @@ class Participant:
                 # Previous participant but no next participant
                 # Add link between prev_part and this participant only. This participant is last finisher so far in race
                 self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
-        else:
-            # No previous participant. Find current first participant in race
-            # If found: Add link between participant and next_participant.
-            first_person_id = participant_first_id(self.race_id)
-            if first_person_id:
-                first_part = Participant(race_id=self.race_id, pers_id=first_person_id)
-                first_part_id = first_part.get_id()
-                # Create the participant node for this person
-                self.set_relation(prev_id=self.part_id, next_id=first_part_id)
+        points_for_race(self.race_id)
         return
 
     def prev_runner(self):
@@ -165,6 +205,7 @@ class Participant:
         # Reset Object
         self.part_id = -1
         self.part_node = None
+        points_for_race(self.race_id)
         return
 
 
@@ -192,7 +233,6 @@ class Person:
             self.person_id = person_node["nid"]
             return True
         else:
-            logging.debug("No person found")
             return False
 
     def add(self, **properties):
@@ -232,7 +272,6 @@ class Person:
         @param person_id:
         @return: Person object is set to the participant.
         """
-        logging.debug("Person ID: {org_id}".format(org_id=person_id))
         person_node = ns.node(person_id)
         if person_node:
             self.name = person_node["name"]
@@ -338,7 +377,6 @@ class Organization:
          org_type. Datestamp needs to be of the form 'YYYY-MM-DD'. org_type 1 for Wedstrijd, 2 for deelname.
         @return: True if the organization has been registered, False if it existed already.
         """
-        logging.debug("Add Organization: {org_dict}".format(org_dict=org_dict))
         org_type = org_dict["org_type"]
         del org_dict["org_type"]
         self.org = org_dict
@@ -374,7 +412,6 @@ class Organization:
         @return: True if the organization has been updated, False if the organization (name, location, date) existed
          already. A change in Organization Type only is also a successful (True) change.
         """
-        logging.debug("In Organization.Edit with properties {properties}".format(properties=properties))
         # Check Organization Type
         curr_org_type = self.get_org_type()
         if not curr_org_type == properties["org_type"]:
@@ -394,11 +431,7 @@ class Organization:
                         nid=self.org_id
                     )
                     ns.node_update(**node_prop)
-                    logging.debug("Name needs to be updated from {on} to {nn}"
-                                  .format(on=self.org["name"], nn=properties["name"]))
                 if 'location' in changed_keys:
-                    logging.debug("Location needs to be updated from {ol} to {nl}"
-                                  .format(ol=self.org["location"], nl=properties["location"]))
                     # Remember current location - before fiddling around with relations!
                     curr_loc = Location(self.org["location"]).get_node()
                     curr_loc_id = ns.node_id(curr_loc)
@@ -409,8 +442,6 @@ class Organization:
                     # Finally check if current location is still required. Remove if there are no more links.
                     ns.remove_node(curr_loc_id)
                 if 'datestamp' in changed_keys:
-                    logging.debug("Date needs to be updated from {od} to {nd}"
-                                  .format(od=type(self.org["datestamp"]), nd=type(properties["datestamp"])))
                     # Get Node for current day
                     curr_ds = self.org["datestamp"]
                     curr_date_node = ns.date_node(curr_ds)
@@ -434,7 +465,6 @@ class Organization:
         @param org_id:
         @return:
         """
-        logging.debug("Org ID: {org_id}".format(org_id=org_id))
         this_org = ns.get_organization_from_id(org_id)
         self.label = "{org_name} ({city}, {day:02d}-{month:02d}-{year})".format(org_name=this_org["org"],
                                                                                 city=this_org["city"],
@@ -513,7 +543,6 @@ class Organization:
         """
         res = ns.get_wedstrijd_type(self.org_id, racetype)
         if res:
-            logging.debug("Organization has {res} races for type {racetype}".format(res=res, racetype=racetype))
             return res
         else:
             return False
@@ -562,8 +591,6 @@ class Organization:
         @param curr_org_type:
         @return:
         """
-        logging.debug("In set_org_type, change from current {cot} to new {newot}"
-                      .format(cot=curr_org_type, newot=new_org_type))
         # First get node and node_id for Organization Type Wedstrijd and Organization Type Deelname
         prop_type = {
             "name": "Wedstrijd"
@@ -626,7 +653,6 @@ class Race:
         if org_id:
             self.org_id = org_id
         elif race_id:
-            logging.debug("Trying to set Race Object for ID {race_id}".format(race_id=race_id))
             self.node_set(nid=race_id)
 
     def find(self, racetype_id):
@@ -655,7 +681,6 @@ class Race:
         @return: True if the race has been registered, False if it existed already.
         """
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
-        logging.debug("Name: {name}".format(name=name))
         self.name = name
         org_type = get_org_type(self.org_id)
         if racetype:
@@ -691,7 +716,6 @@ class Race:
         @return: True if the race has been updated, False otherwise.
         """
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
-        logging.debug("Edit race to new name: {name}".format(name=name))
         self.name = name
         props = dict(name=self.name, nid=self.race_id)
         ns.node_update(**props)
@@ -703,12 +727,9 @@ class Race:
         @param nid: Node ID of the race node.
         @return: Fully configured race object.
         """
-        logging.debug("In node_set to create race node for id {node_id}".format(node_id=nid))
         self.race_id = nid
         race_node = ns.node(self.race_id)
-        logging.debug("Race node set")
         self.name = race_node['name']
-        logging.debug("Name: {name}".format(name=self.name))
         self.org_id = self.get_org_id()
         self.label = self.set_label()
         return
@@ -719,8 +740,6 @@ class Race:
         @return: org_id
         """
         org_node_nid = ns.get_start_node(end_node_id=self.race_id, rel_type="has")
-        logging.debug("ID of the Org for Race ID {race_id} is {org_id}"
-                      .format(org_id=org_node_nid, race_id=self.race_id))
         return org_node_nid
 
     def get_name(self):
@@ -745,7 +764,6 @@ class Race:
         already.
         @return:
         """
-        logging.debug("Trying to get Organization label for org ID {org_id}".format(org_id=self.org_id))
         org_node = ns.node(self.org_id)
         org_name = org_node["name"]
         self.label = "{race_name} ({org_name})".format(race_name=self.name, org_name=org_name)
@@ -936,15 +954,18 @@ def race_delete(race_id=None):
         return True
 
 
-def person_list():
+def person_list(nr_races=None):
     """
     Return the list of persons as person objects.
+    @param nr_races: if True then add number of races for the person to the list.
     @return: List of persons objects. Each person is represented in a list with nid and name of the person.
     """
     res = ns.get_nodes('Person')
     person_arr = []
     for node in res:
         attribs = [node["nid"], node["name"]]
+        if nr_races:
+            attribs.append(len(ns.get_race4person(person_id=node["nid"])))
         person_arr.append(attribs)
     person_arr.sort(key=lambda x: x[1])
     return person_arr
@@ -1011,6 +1032,30 @@ def points_position(pos):
     return points
 
 
+def points_for_race(race_id):
+    """
+    This method will calculate the points for a race. If race type is 'Deelname', then points_deelname function is
+    called. Else points for every race in the organization need to be recalculated.
+    :param race_id:
+    :return:
+    """
+    race_obj = Race(race_id=race_id)
+    race_type = race_obj.get_racetype()
+    if race_type == "Deelname":
+        points_deelname(race_id)
+    else:
+        org_id = race_obj.get_org_id()
+        races = get_races_for_org(org_id=org_id)
+        for rid in races:
+            r_obj = Race(race_id=rid)
+            r_type = r_obj.get_racetype()
+            if r_type == "Hoofdwedstrijd":
+                points_hoofdwedstrijd(rid)
+            else:
+                points_bijwedstrijd(rid)
+    return
+
+
 def points_bijwedstrijd(race_id):
     """
     This method will assign points to participants in a race for type 'Bijwedstrijd'. It will add 'bijwedstrijd' points
@@ -1035,7 +1080,7 @@ def points_bijwedstrijd(race_id):
     if node_list:
         for part in node_list:
             mf = get_cat4part(part["nid"])
-            if mf == "man":
+            if mf == "Heren":
                 points = m_points
             else:
                 points = d_points
@@ -1082,7 +1127,7 @@ def points_deelname(race_id):
     return
 
 
-def sum_points(point_list):
+def points_sum(point_list):
     """
     This function will calculate the total of the points for this participant. For now, the sum of all points is
     calculated.
@@ -1090,7 +1135,7 @@ def sum_points(point_list):
     :return: sum of the points
     """
     nr_races = 7
-    add_points_per_race = 5
+    add_points_per_race = 10
     max_list = sorted(point_list)[-nr_races:]
     if len(point_list) > nr_races:
         add_points = (len(point_list) - nr_races) * add_points_per_race
@@ -1121,17 +1166,19 @@ def results_for_category(cat):
             result_list[rec["name"]] = [rec["points"]]
     # 2. Calculate points per person
     for name in result_list:
-        result_total.append([name, sum_points(result_list[name]), len(result_list[name])])
+        result_total.append([name, points_sum(result_list[name]), len(result_list[name])])
     result_sorted = sorted(result_total, key=lambda x: -x[1])
     return result_sorted
 
 
-def participant_seq_list(race_id):
+def participant_seq_list(race_id, add_points=None):
     """
     This method will collect the people in a race in sequence of arrival.
     @param race_id: nid of the race for which the participants are returned in sequence of arrival.
-    @return: List of participant items in the race. Each item is a list of person nid and the person name.
-    False if no participants in the list.
+    @param add_points: If set to True, then participant points will be added to the participant item. Otherwise no
+     participant points will be set and the list can be used as a selection list (e.g. in participant_after_list).
+    @return: List of participant items in the race. Each item is a list of person nid, person name and the points
+     for the person in the race. False if no participants in the list.
     """
     node_list = ns.get_participant_seq_list(race_id)
     if node_list:
@@ -1142,8 +1189,9 @@ def participant_seq_list(race_id):
             pers_nid = ns.get_start_node(end_node_id=part["nid"], rel_type="is")
             pers_node = ns.node(pers_nid)
             pers_name = pers_node["name"]
-            logging.debug("pers_name: {pers_name}, pers_id: {pers_id}".format(pers_name=pers_name, pers_id=pers_nid))
             pers_obj = [pers_nid, pers_name]
+            if add_points:
+                pers_obj.append(part["points"])
             finisher_list.append(pers_obj)
         return finisher_list
     else:
@@ -1160,8 +1208,12 @@ def participant_after_list(race_id):
     """
     eerste = [-1, 'Eerste aankomst']
     finisher_list = participant_seq_list(race_id)
-    finisher_list.insert(0, eerste)
-    return finisher_list
+    if finisher_list:
+        finisher_list.insert(0, eerste)
+        return finisher_list
+    else:
+        finisher_list = [eerste]
+        return finisher_list
 
 
 def participant_last_id(race_id):
@@ -1175,7 +1227,6 @@ def participant_last_id(race_id):
     finisher_list = participant_after_list(race_id)
     part_arr = finisher_list.pop()
     part_last = part_arr[0]
-    logging.debug("ID of last finisher: {part_last}".format(part_last=part_last))
     return part_last
 
 
@@ -1183,13 +1234,11 @@ def participant_first_id(race_id):
     """
     This method will get the ID of the first person in the race.
     @param race_id: Node ID of the race.
-    @return: Node ID of the first person so far in the race, -1 if no finishers registered yet.
+    @return: Node ID of the first person so far in the race, False if no participant registered for this race.
     """
     finisher_list = participant_seq_list(race_id)
     if finisher_list:
         person_id = finisher_list[0][0]
-        logging.debug("This is person_id {person_id} from finisher_list {fl} - race_id {race_id}"
-                      .format(person_id=person_id, fl=finisher_list, race_id=race_id))
         return person_id
     else:
         return False

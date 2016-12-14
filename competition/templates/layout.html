@@ -13,7 +13,29 @@
             <div class="navbar-header">
                 <a class="navbar-brand" href="{{ url_for('main.index') }}">OLSE</a>
             </div>
-            <ul class="nav navbar-nav">
+                <ul class="nav navbar-nav">
+                <li class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                        Kalender
+                        <span class="caret"></span>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="{{ url_for('main.organization_list') }}">Overzicht Organisatie</a></li>
+                        {% if current_user.is_authenticated %}
+                        <li><a href="{{ url_for('main.organization_add') }}">Nieuwe Organisatie</a></li>
+                        {% endif %}
+                    </ul>
+                </li>
+                <li class="dropdown">
+                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
+                        Stand
+                        <span class="caret"></span>
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a href="{{ url_for('main.results', cat='Dames') }}">Dames</a></li>
+                        <li><a href="{{ url_for('main.results', cat='Heren') }}">Heren</a></li>
+                    </ul>
+                </li>
                 <li class="dropdown">
                     <a class="dropdown-toggle" data-toggle="dropdown" href="#">
                         Deelnemers
@@ -25,21 +47,6 @@
                         <li><a href="{{ url_for('main.person_add') }}">Nieuwe Deelnemer</a></li>
                         {% endif %}
                     </ul>
-                </li>
-                <li class="dropdown">
-                    <a class="dropdown-toggle" data-toggle="dropdown" href="#">
-                        Organisaties
-                        <span class="caret"></span>
-                    </a>
-                    <ul class="dropdown-menu">
-                        <li><a href="{{ url_for('main.organization_list') }}">Overzicht Organisatie</a></li>
-                        {% if current_user.is_authenticated %}
-                        <li><a href="{{ url_for('main.organization_add') }}">Nieuwe Organisatie</a></li>
-                        {% endif %}
-                    </ul>
-                </li>
-                <li>
-                    <a href="{{ url_for('main.results') }}">Totaal</a>
                 </li>
             </ul>
             <ul class="nav navbar-nav navbar-right">

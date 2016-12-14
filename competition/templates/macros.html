@@ -3,15 +3,15 @@
         <table class="table table-hover">
             <tr>
                 <th>Datum</th>
-                <th>Plaats</th>
                 <th>Naam</th>
+                <th>Plaats</th>
                 <th>Type</th>
             </tr>
             {% for row in organizations %}
                 <tr>
                     <td>{{ row.date }}</td>
-                    <td>{{ row.city }}</td>
                     <td><a href="{{ url_for('main.race_list', org_id=row.id) }}">{{ row.organization }}</a></td>
+                    <td>{{ row.city }}</td>
                     <td>{{ row.type }}</td>
                 </tr>
             {% endfor %}
@@ -35,8 +35,10 @@
             <tr>
                 <th>Plaats</th>
                 <th>Naam</th>
+                <th>Punten</th>
                 <th>Verwijderen</th>
             </tr>
+            {% if finishers is iterable %}
             {% for row in finishers %}
             <tr>
                 <td>{{ loop.index }}</td>
@@ -46,12 +48,16 @@
                     </a>
                 </td>
                 <td>
+                    {{ row[2] }}
+                </td>
+                <td>
                     <a href="{{ url_for('main.participant_remove', pers_id=row[0], race_id=race_id) }}">
                         <img src="/static/button_cancel.png" width="25" height="25">
                     </a>
                 </td>
             </tr>
             {% endfor %}
+            {% endif %}
         </table>
     </div>
 {% endmacro %}
@@ -62,10 +68,12 @@
         <table class="table table-hover">
             <tr>
                 <th>Naam</th>
+                <th>#</th>
             </tr>
             {% for row in persons %}
             <tr>
                 <td><a href="{{ url_for('main.person_summary', pers_id=row[0]) }}">{{ row[1] }}</a></td>
+                <td>{{ row[2] }}</td>
             </tr>
             {% endfor %}
         </table>
