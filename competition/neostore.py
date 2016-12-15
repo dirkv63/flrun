@@ -478,10 +478,11 @@ class NeoStore:
         """
         query = """
             MATCH (race:Race)<-[:has]-(org)-[:On]->(date),
-                  (org)-[:In]->(loc)
+                  (org)-[:In]->(loc),
+                  (type:RaceType)<-[:type]-(race)
             WHERE race.nid='{race_id}'
             RETURN race.name as race, org.name as org, loc.city as city, date.day as day,
-                   date.month as month, date.year as year
+                   date.month as month, date.year as year, type.name as type
         """.format(race_id=race_id)
         recordlist = self.graph.run(query).data()
         if len(recordlist) == 0:
@@ -497,7 +498,7 @@ class NeoStore:
         The races will be returned as a list of dictionaries with fields race (racename), type (racetype) and nid of the
         race.
         @param org_id: nid of the Organization.
-        @return:
+        @return: List of dictionaries, or empty list which evaluates to False.
         """
         query = """
             MATCH (org:Organization)-[:has]->(race:Race)-[:type]->(racetype:RaceType)

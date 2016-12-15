@@ -248,6 +248,9 @@ class TestNeoStore(unittest.TestCase):
         self.assertTrue(isinstance(org, dict))
         # I need to have 2 organizations in return
         self.assertEqual(len(res), 2)
+        # Test what will happen if I ask for organization without races.
+        org_id = "BestaatNiet"
+        self.assertFalse(self.ns.get_race_list(org_id))
 
     def test_get_race4person(self):
         # I want to get a list of dictionaries.

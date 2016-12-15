@@ -117,7 +117,7 @@ def person_summary(pers_id):
         conns = 1
     else:
         conns = 0
-    persons = mg.person_list()
+    persons = mg.person_list(nr_races=True)
     return render_template('/person_races_list.html', pers_label=part_name, pers_id=pers_id, races=races,
                            conns=conns, persons=persons)
 
@@ -151,7 +151,6 @@ def organization_list():
 @main.route('/organization/add', methods=['GET', 'POST'])
 @login_required
 def organization_add(org_id=None):
-    current_app.logger.debug("Evaluate Organization/add")
     if request.method == "POST":
         form = OrganizationAdd()
         if form.validate_on_submit():
@@ -160,12 +159,11 @@ def organization_add(org_id=None):
                             datestamp=form.datestamp.data,
                             org_type=form.org_type.data)
             if org_id:
-                current_app.logger.debug("Ready to edit organization")
                 org = mg.Organization(org_id=org_id)
                 if org.edit(**org_dict):
                     flash(org_dict["name"] + ' aangepast.', "success")
                 else:
-                    flash(org_dict["name"] + ' bestaat reeds, niet aangepast.', "warning")
+                    flash(org_dict["name"] + ' bestaat reeds.', "warning")
             else:
                 current_app.logger.debug("Ready to add organization")
                 if mg.Organization().add(**org_dict):
@@ -208,7 +206,7 @@ def organization_edit(org_id):
     :param org_id: The Node ID of the organization.
     :return:
     """
-    current_app.logger.debug("Evaluate Organization/edit")
+    # current_app.logger.debug("Evaluate Organization/edit")
     return organization_add(org_id=org_id)
 
 
@@ -325,7 +323,6 @@ def race_edit(org_id, race_id):
     :param race_id: The Node ID of the race.
     :return:
     """
-    current_app.logger.debug("Evaluate Race/edit")
     return race_add(org_id=org_id, race_id=race_id)
 
 
@@ -408,6 +405,7 @@ def hoofdwedstrijd_remove(org_id, race_id):
     """
     bij_node = mg.get_race_type_node("Bijwedstrijd")
     mg.set_race_type(race_id=race_id, race_type_node=bij_node)
+    mg.points_for_race(race_id)
     return redirect(url_for('main.race_list', org_id=org_id))
 
 
@@ -422,6 +420,7 @@ def hoofdwedstrijd_set(org_id, race_id):
     """
     hoofd_node = mg.get_race_type_node("Hoofdwedstrijd")
     mg.set_race_type(race_id=race_id, race_type_node=hoofd_node)
+    mg.points_for_race(race_id)
     return redirect(url_for('main.race_list', org_id=org_id))
 
 

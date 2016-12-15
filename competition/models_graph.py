@@ -79,7 +79,7 @@ class Participant:
         prev_part_node = ns.node(prev_id)
         next_part_node = ns.node(next_id)
         if neostore.validate_node(prev_part_node, "Participant") \
-            and neostore.validate_node(next_part_node, "Participant"):
+                and neostore.validate_node(next_part_node, "Participant"):
             ns.create_relation(from_node=next_part_node, rel="after", to_node=prev_part_node)
         return
 
@@ -122,50 +122,6 @@ class Participant:
             if next_arrival_nid:
                 self.set_relation(next_id=next_arrival_nid, prev_id=self.part_id)
         # Calculate points after adding participant
-        points_for_race(self.race_id)
-        return
-
-    def tobedeleted_add(self, prev_pers_id=None):
-        """
-        This function will add the participant in the sequence of participants. The participant's predecessor is known.
-        Possibilities:
-        1. No predecessor. This is the first participant in this race. Check if there is a successor!
-        2. No successor. This participant is  the last participant in the race.
-        3. A predecessor that was linked to a successor already. This participant will break the existing link and
-           enters between the predecessor and the successor.
-        Check if there is a next participant for this participant, so if current runner enters an existing sequence.
-        Create the person participant node only when the relations are known. Otherwise the new participant node can
-        conflict with the sequence asked for.
-        Recalculate points for the race.
-        @param prev_pers_id: Node ID of the previous person, or None if the person is the first arrival.
-        @return:
-        """
-        if prev_pers_id == -1:
-            # No previous participant. Find nid for current first participant in race
-            # If found: Add link between the new participant and next_participant.
-            first_person_id = participant_first_id(self.race_id)
-            if first_person_id:
-                first_part = Participant(race_id=self.race_id, pers_id=first_person_id)
-                first_part_id = first_part.get_id()
-                # Create the participant node for this person
-                self.set_relation(prev_id=self.part_id, next_id=first_part_id)
-        else:
-            prev_part = Participant(pers_id=prev_pers_id, race_id=self.race_id)
-            prev_part_id = prev_part.get_id()
-            if prev_part.next_runner():
-                # The previous runner for this participant was not the last one so far in the race.
-                # Get next runner to assign as next runner for participant.
-                next_part_id = prev_part.next_runner()
-                # Add link between part and next_part
-                self.set_relation(prev_id=self.part_id, next_id=next_part_id)
-                # Add link between prev_part and part
-                self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
-                # Remove 'after' relation between prev_part and next_part
-                ns.remove_relation(start_nid=next_part_id, end_nid=prev_part_id, rel_type="after")
-            else:
-                # Previous participant but no next participant
-                # Add link between prev_part and this participant only. This participant is last finisher so far in race
-                self.set_relation(prev_id=prev_part_id, next_id=self.part_id)
         points_for_race(self.race_id)
         return
 
@@ -416,6 +372,11 @@ class Organization:
         curr_org_type = self.get_org_type()
         if not curr_org_type == properties["org_type"]:
             self.set_org_type(new_org_type=properties["org_type"], curr_org_type=curr_org_type)
+            # Organization type changed, so re-calculate points for all races in the organization
+            racelist = race_list(self.org_id)
+            for rec in racelist:
+                # Probably not efficient, but then you should't change organization type too often.
+                points_for_race(rec["race_id"])
         del properties["org_type"]
         # Check if name, date or location are changed
         changed_keys = [key for key in sorted(properties) if not (properties[key] == self.org[key])]
@@ -905,8 +866,8 @@ def get_races_for_org(org_id):
 def race_list(org_id):
     """
     This function will return a list of races for an organization ID
-    :param org_id: nid of the organization
-    :return: List of races.
+    @param org_id: nid of the organization
+    @return: List of races (empty list if there are no races).
     """
     return ns.get_race_list(org_id)
 
@@ -918,9 +879,9 @@ def race_label(race_id):
     @return:
     """
     record = ns.get_race_label(race_id)
-    label = "{day:02d}-{month:02d}-{year} - {city}, {race}".format(race=record["race"], city=record["city"],
-                                                                   day=record["day"], month=record["month"],
-                                                                   year=record["year"])
+    label = "{day:02d}-{month:02d}-{year} - {city}, {race} ({d})"\
+        .format(race=record["race"], city=record["city"], d=record["type"],
+                day=record["day"], month=record["month"], year=record["year"])
     return label
 
 
@@ -967,7 +928,10 @@ def person_list(nr_races=None):
         if nr_races:
             attribs.append(len(ns.get_race4person(person_id=node["nid"])))
         person_arr.append(attribs)
-    person_arr.sort(key=lambda x: x[1])
+    if nr_races:
+        person_arr.sort(key=lambda x: -x[2])
+    else:
+        person_arr.sort(key=lambda x: x[1])
     return person_arr
 
 
