@@ -3,12 +3,10 @@ import logging
 from config import config
 from flask import Flask
 from flask_bootstrap import Bootstrap
-from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from lib import my_env
 
 bootstrap = Bootstrap()
-db = SQLAlchemy()
 lm = LoginManager()
 lm.login_view = 'main.login'
 ns = ""
@@ -31,7 +29,6 @@ def create_app(config_name):
 
     # initialize extensions
     bootstrap.init_app(app)
-    db.init_app(app)
     lm.init_app(app)
     """
     node_params = {

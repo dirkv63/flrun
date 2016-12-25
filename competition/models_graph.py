@@ -20,6 +20,7 @@ class User(UserMixin):
 
     def register(self, username, password):
         self.user_id = "{u} - {p}".format(u=username, p=password)
+        print("User registered as {u}".format(u=self.user_id))
         return self.user_id
 
 

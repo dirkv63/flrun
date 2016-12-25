@@ -35,8 +35,6 @@ class DevelopmentConfig(Config):
     LOGLEVEL = "info"
     # SERVER_NAME = '0.0.0.0:5012'
     # SERVER_NAME = 'localhost:50120'
-    SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(os.path.dirname(__file__), "../data-dev.sqlite3")
-    SQLALCHEMY_TRACK_MODIFICATIONS = True
 
 
 class TestingConfig(Config):
@@ -47,15 +45,12 @@ class TestingConfig(Config):
     SECRET_KEY = 'The Secret Test Key!'
     WTF_CSRF_ENABLED = False
     SERVER_NAME = 'localhost:5999'
-    SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(os.path.dirname(__file__), "../data-test.sqlite3")
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 
 class ProductionConfig(Config):
     ADMINS = ['dirk@vermeylen.net']
     LOGLEVEL = "warning"
     SERVER_NAME = 'localhost:5008'
-    SQLALCHEMY_DATABASE_URI = "sqlite:///" + os.path.join(os.path.dirname(__file__), "../data.sqlite3")
     DEBUG = False
 
 
