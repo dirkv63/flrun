@@ -7,17 +7,20 @@ from flask import render_template, flash, current_app, redirect, url_for, reques
 from flask_login import login_required, login_user, logout_user
 from .forms import *
 from . import main
-from ..models_sql import User
+# from ..models_sql import User
 
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
     form = Login()
     if form.validate_on_submit():
+        """
         user = User.query.filter_by(username=form.username.data).first()
         if user is None or not user.verify_password(form.password.data):
             current_app.logger.debug('Login not successful')
             return redirect(url_for('main.login', **request.args))
+        """
+        user = mg.User(user_id="Santa Claus")
         login_user(user, form.remember_me.data)
         return redirect(request.args.get('next') or url_for('main.index'))
     return render_template('login.html', form=form)

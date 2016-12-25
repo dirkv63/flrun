@@ -1,10 +1,31 @@
 import logging
-
+from . import lm
 from competition import neostore
+from flask_login import UserMixin
 # from lib import my_env
 
 # Todo: Get Username / Password from environment settings
 ns = neostore.NeoStore()
+
+
+class User(UserMixin):
+    def __init__(self, user_id=None):
+        if user_id:
+            self.user_id = user_id
+        else:
+            self.user_id = "NotDefined"
+
+    def get_id(self):
+        return self.user_id
+
+    def register(self, username, password):
+        self.user_id = "{u} - {p}".format(u=username, p=password)
+        return self.user_id
+
+
+@lm.user_loader
+def load_user(user_id):
+    return User(user_id)
 
 
 class Participant:
