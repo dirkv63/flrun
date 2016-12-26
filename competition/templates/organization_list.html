@@ -5,4 +5,7 @@
 <div class="row">
     {{ macros.org_list(organizations) }}
 </div>
+{% if current_user.is_authenticated %}
+    <a href="{{ url_for('main.organization_add') }}" class="btn btn-default" role="button">Organizatie Toevoegen</a>
+{% endif %}
 {% endblock %}

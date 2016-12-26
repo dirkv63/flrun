@@ -5,4 +5,7 @@
 <div class="row">
     {{ macros.person_list(persons) }}
 </div>
+{% if current_user.is_authenticated %}
+    <a href="{{ url_for('main.person_add') }}" class="btn btn-default" role="button">Deelnemer Toevoegen</a>
+{% endif %}
 {% endblock %}

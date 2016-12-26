@@ -3,29 +3,84 @@ from . import lm
 from competition import neostore
 from flask_login import UserMixin
 # from lib import my_env
+from werkzeug.security import generate_password_hash, check_password_hash
 
 # Todo: Get Username / Password from environment settings
 ns = neostore.NeoStore()
 
 
 class User(UserMixin):
+    """
+    The user class manages the registered users of the application. The Person class is for the people that participate
+    in the race.
+    """
     def __init__(self, user_id=None):
         if user_id:
-            self.user_id = user_id
+            self.user_node = ns.node(user_id)
         else:
-            self.user_id = "NotDefined"
+            self.user_node = "NotDefined"
+
+    def __repr__(self):
+        return "<User: {user}>".format(user=self.user_node["name"])
+
+    def find(self, username):
+        """
+        This function will find the User object for the user with the specified username.
+        If found, then the hashed password is returned. If not found, False is returned.
+        :param username:
+        :return: User node, then the caller can do whatever he wants with the information.
+        """
+        label = "User"
+        props = dict(name=username)
+        user_node = ns.get_node(label, **props)
+        if user_node:
+            try:
+                self.user_node = user_node
+                return self.user_node
+            except KeyError:
+                # Password not defined for user, return False
+                return False
+        else:
+            # User not defined
+            return False
 
     def get_id(self):
-        return self.user_id
+        return self.user_node["nid"]
 
     def register(self, username, password):
-        self.user_id = "{u} - {p}".format(u=username, p=password)
-        print("User registered as {u}".format(u=self.user_id))
-        return self.user_id
+        if self.find(username):
+            return False
+        else:
+            label = "User"
+            props = dict(
+                name=username,
+                pwd=generate_password_hash(password)
+            )
+            user_node = ns.create_node(label, **props)
+            return user_node["nid"]
+
+    def validate_password(self, name, pwd):
+        """
+        Find the user. If the user exists, verify the password. If the passwords match, return nid of the User node.
+        If the passwords don't match, return False.
+        If the user does not exists, return False.
+        :param name:
+        :param pwd:
+        :return:
+        """
+        if self.find(name):
+            return check_password_hash(self.user_node["pwd"], pwd)
+        else:
+            return False
 
 
 @lm.user_loader
 def load_user(user_id):
+    """
+    This function will return the User object. user_id is the nid of the User node.
+    :param user_id: nid of the user node.
+    :return: user object.
+    """
     return User(user_id)
 
 

@@ -14,14 +14,12 @@ from . import main
 def login():
     form = Login()
     if form.validate_on_submit():
-        """
-        user = User.query.filter_by(username=form.username.data).first()
-        if user is None or not user.verify_password(form.password.data):
-            current_app.logger.debug('Login not successful')
+        # Create an empty user object
+        user = mg.User()
+        if not user.validate_password(name=form.username.data, pwd=form.password.data):
+            flash('Login not successful', "error")
             return redirect(url_for('main.login', **request.args))
-        """
-        user = mg.User(user_id="Santa Claus")
-        login_user(user, form.remember_me.data)
+        login_user(user, remember=form.remember_me.data)
         return redirect(request.args.get('next') or url_for('main.index'))
     return render_template('login.html', form=form)
 
@@ -79,7 +77,7 @@ def person_add(person_id=None):
                 else:
                     flash(name + ' bestaat reeds, niet toegevoegd.', "warning")
             return redirect(url_for('main.person_add'))
-    persons = mg.person_list()
+    persons = mg.person_list(nr_races=True)
     return render_template('person_add.html', form=form, name=name, persons=persons)
 
 

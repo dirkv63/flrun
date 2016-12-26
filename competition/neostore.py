@@ -3,6 +3,8 @@ This class consolidates functions related to the neo4J datastore.
 """
 
 import logging
+import os
+import platform
 import sys
 import uuid
 from datetime import datetime, date
@@ -30,23 +32,19 @@ class NeoStore:
         Internal method to create a database connection. This method is called during object initialization.
         @return: Database handle and cursor for the database.
         """
-        neo4j_params = {
-            'user': "neo4j",
-            'password': "_m8z8IpJUPyR",
-            'db': "stratenloop16.db"
-        }
-        neo4j_config = {
-            'user': neo4j_params['user'],
-            'password': neo4j_params["password"],
-        }
+        user = "neo4j"
+        pwd = "_m8z8IpJUPyR"
+        local_db = "stratenloop16.db"
         # Connect to Graph
-        graph = Graph(**neo4j_config)
-        # Check that we are connected to the expected Neo4J Store - to avoid accidents...
-        dbname = DBMS().database_name
-        if dbname != neo4j_params['db']:    # pragma: no cover
-            logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
-                          .format(d=dbname, n=neo4j_params['db']))
-            sys.exit(1)
+        graphenedb_url = os.environ.get("GRAPHENEDB_URL", "http://{u}:{p}@localhost:7474".format(u=user, p=pwd))
+        graph_url = "{g}/db/data/".format(g=graphenedb_url)
+        graph = Graph(graph_url, bolt=False)
+        if platform.node() == "CAA2GKCOR1":
+            dbname = DBMS().database_name
+            if dbname != local_db:    # pragma: no cover
+                logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
+                              .format(d=dbname, n=local_db))
+                sys.exit(1)
         return graph
 
     def clear_locations(self):
@@ -71,9 +69,9 @@ class NeoStore:
         Function to create node. The function will return the node object.
         Note that a 'nid' attribute will be added to the node. This is a UUID4 unique identifier. This is a temporary
         solution cause there seems to be no other way to extract the node ID from a node.
-        @param labels: Labels for the node
-        @param props: Value dictionary with values for the node.
-        @return: Node that has been created.
+        :param labels: Labels for the node
+        :param props: Value dictionary with values for the node.
+        :return: Node that has been created.
         """
         props['nid'] = str(uuid.uuid4())
         component = Node(*labels, **props)
@@ -286,7 +284,7 @@ class NeoStore:
         """
         nodes = self.get_nodes(*labels, **props)
         if not nodes:
-            logging.error("Expected 1 node for label {l} and props {p}, found none.".format(l=labels, p=props))
+            logging.info("Expected 1 node for label {l} and props {p}, found none.".format(l=labels, p=props))
             return False
         elif len(nodes) > 1:
             logging.error("Expected 1 node for label {l} and props {p}, found many {m}."

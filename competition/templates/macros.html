@@ -36,7 +36,9 @@
                 <th>Plaats</th>
                 <th>Naam</th>
                 <th>Punten</th>
-                <th>Verwijderen</th>
+                {% if current_user.is_authenticated %}
+                    <th>Verwijderen</th>
+                {% endif %}
             </tr>
             {% if finishers is iterable %}
             {% for row in finishers %}
@@ -50,11 +52,13 @@
                 <td>
                     {{ row[2] }}
                 </td>
-                <td>
-                    <a href="{{ url_for('main.participant_remove', pers_id=row[0], race_id=race_id) }}">
-                        <img src="/static/button_cancel.png" width="25" height="25">
-                    </a>
-                </td>
+                {% if current_user.is_authenticated %}
+                    <td>
+                        <a href="{{ url_for('main.participant_remove', pers_id=row[0], race_id=race_id) }}">
+                            <img src="/static/button_cancel.png" width="25" height="25">
+                        </a>
+                    </td>
+                {% endif %}
             </tr>
             {% endfor %}
             {% endif %}
