@@ -16,7 +16,9 @@
             <tr>
                 <td>{{ cnt }}</td>
                 <td>{% if row[2] > 6 %}<b>{% endif %}
-                    {{ row[0] }}
+                    <a href="{{ url_for('main.person_summary', pers_id=row[3]) }}">
+                        {{ row[0] }}
+                    </a>
                     {% if row[2] > 6 %}</b>{% endif %}
                 </td>
                 <td>{{ row[1] }}</td>

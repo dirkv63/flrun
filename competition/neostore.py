@@ -440,7 +440,8 @@ class NeoStore:
         :param cat:
         :return:
         """
-        query = "match (c:MF {name:{cat}})<-[:mf]-(n:Person)-[:is]->(p) return n.name as name, p.points as points"
+        query = "match (c:MF {name:{cat}})<-[:mf]-(n:Person)-[:is]->(p) " \
+                "return n.name as name, n.nid as nid, p.points as points"
         res = self.graph.run(query, cat=cat)
         return res
 
@@ -518,7 +519,7 @@ class NeoStore:
                   <-[:has]-(org:Organization)-[:On]->(day:Day)
             WHERE person.nid='{pers_id}'
             RETURN race.nid as race_id
-            ORDER BY day.key DESC
+            ORDER BY day.key ASC
         """.format(pers_id=person_id)
         res = self.graph.run(query).data()
         return res

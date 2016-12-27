@@ -1207,7 +1207,7 @@ def results_for_category(cat):
             result_list[rec["name"]] = [rec["points"]]
     # 2. Calculate points per person
     for name in result_list:
-        result_total.append([name, points_sum(result_list[name]), len(result_list[name])])
+        result_total.append([name, points_sum(result_list[name]), len(result_list[name]), rec["nid"]])
     result_sorted = sorted(result_total, key=lambda x: -x[1])
     return result_sorted
 
