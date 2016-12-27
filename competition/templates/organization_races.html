@@ -19,7 +19,11 @@
             </tr>
             {% for row in races %}
             <tr>
-                <td><a href="{{ url_for('main.participant_add', race_id=row.race_id, org_id=org_id) }}">{{ row.race}}</a></td>
+                <td>
+                    <a href="{{ url_for('main.participant_list', race_id=row.race_id, org_id=org_id) }}">
+                        {{ row.race}}
+                    </a>
+                </td>
                 <td>
                     {% if row.type is equalto "Hoofdwedstrijd" %}
                         <a href="{{ url_for('main.hoofdwedstrijd_remove', race_id=row.race_id, org_id=org_id) }}">

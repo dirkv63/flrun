@@ -327,6 +327,18 @@ def race_edit(org_id, race_id):
     return race_add(org_id=org_id, race_id=race_id)
 
 
+@main.route('/participant/<race_id>/list', methods=['GET'])
+def participant_list(race_id):
+    """
+    This method will show the participants in sequence of arrival for a race.
+    :param race_id:
+    :return:
+    """
+    race_label = mg.race_label(race_id)
+    finishers = mg.participant_seq_list(race_id, add_points=True)
+    return render_template('participant_list.html', finishers=finishers, race_label=race_label, race_id=race_id)
+
+
 @main.route('/participant/<race_id>/add', methods=['GET', 'POST'])
 @login_required
 def participant_add(race_id):

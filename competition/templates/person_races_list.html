@@ -28,7 +28,7 @@
                         <!--
                         <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race }}</a></td>
                         -->
-                        <td><a href="{{ url_for('main.participant_add', race_id=row.race_id) }}">{{ row.race_label }}
+                        <td><a href="{{ url_for('main.participant_list', race_id=row.race_id) }}">{{ row.race_label }}
                             </a>
                         </td>
                     </tr>

@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% import "macros.html" as macros with context %}
+{% import "bootstrap/wtf.html" as wtf %}
+
+{% block page_content %}
+<h2><a href="{{ url_for('main.race_list', org_id=org_id) }}">{{ race_label }}</a></h2>
+<div class="row">
+{{ macros.race_finishers(finishers, race_id) }}
+</div>
+{% if current_user.is_authenticated %}
+    <a href="{{ url_for('main.participant_add', race_id=race_id) }}" class="btn btn-default" role="button">
+        Uitslag aanpassen
+    </a>
+{% endif %}
+{% endblock %}
