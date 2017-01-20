@@ -222,7 +222,7 @@ def organization_delete(org_id):
     """
     # Todo: Check on Organization Date, does this needs to be removed?
     # Todo: Check on Organization Location, does this needs to be removed?
-    current_app.logger.debug("Delete organization {org_id}".format(org_id=org_id))
+    current_app.logger.error("Delete organization {org_id}".format(org_id=org_id))
     if mg.organization_delete(org_id=org_id):
         flash("Organizatie verwijderd.", "success")
         return redirect(url_for('main.organization_list'))

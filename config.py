@@ -32,7 +32,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    LOGLEVEL = "info"
+    LOGLEVEL = "debug"
     # SERVER_NAME = '0.0.0.0:5012'
     # SERVER_NAME = 'localhost:50120'
 

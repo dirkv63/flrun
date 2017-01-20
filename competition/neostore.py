@@ -12,6 +12,11 @@ from pandas import DataFrame
 from py2neo import Graph, Node, Relationship, NodeSelector
 from py2neo.database import DBMS
 from py2neo.ext.calendar import GregorianCalendar
+from py2neo import watch
+from py2neo.packages.neo4j.v1 import basic_auth
+
+
+watch("neo4j.http")
 
 
 class NeoStore:
@@ -32,19 +37,38 @@ class NeoStore:
         Internal method to create a database connection. This method is called during object initialization.
         @return: Database handle and cursor for the database.
         """
-        user = "neo4j"
-        pwd = "_m8z8IpJUPyR"
+        """
+        user = os.environ.get("GRAPHENEDB_BOLT_USER", "neo4j")
+        pwd = os.environ.get("GRAPHENEDB_BOLT_PASSWORD", "_m8z8IpJUPyR")
         local_db = "stratenloop16.db"
         # Connect to Graph
         graphenedb_url = os.environ.get("GRAPHENEDB_URL", "http://{u}:{p}@localhost:7474".format(u=user, p=pwd))
         graph_url = "{g}/db/data/".format(g=graphenedb_url)
-        graph = Graph(graph_url, bolt=False)
-        if platform.node() == "CAA2GKCOR1":
+        """
+        # graphenedb_url = os.environ.get("GRAPHENEDB_BOLT_URL")
+        graphenedb_url = "bolt://hobby-dijdihliojekgbkedhfallol.dbs.graphenedb.com:24786"
+        # graphenedb_user = os.environ.get("GRAPHENEDB_BOLT_USER")
+        graphenedb_user = "app60885199-gphiRm"
+        # graphenedb_pass = os.environ.get("GRAPHENEDB_BOLT_PASSWORD")
+        graphenedb_pass = "0Y5Up4HMgKGNRP5ImVdw"
+        host = "hobby-dijdihliojekgbkedhfallol.dbs.graphenedb.com"
+        bolt_port = 24786
+        http_port = 24789
+        # graph = Graph(graphenedb_url, user=graphenedb_user, password=graphenedb_pass, bolt=True, secure=True,
+        #               bolt_port=24786)
+        graph = Graph(graphenedb_url, host=host, user=graphenedb_user, password=graphenedb_pass, bolt=True, secure=False,
+                      bolt_port=bolt_port, http_port=http_port)
+        # logging.info("Connecting to URL {g}".format(g=graph_url))
+        # graph = Graph(graph_url, bolt=False)
+        # graph = Graph(graph_url, **neo4j_config)
+        """
+        if ('localhost' in graph_url) and (platform.node() == "CAA2GKCOR1"):
             dbname = DBMS().database_name
             if dbname != local_db:    # pragma: no cover
                 logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
                               .format(d=dbname, n=local_db))
                 sys.exit(1)
+        """
         return graph
 
     def clear_locations(self):
@@ -58,7 +82,7 @@ class NeoStore:
         query = """
             MATCH (loc:Location) WHERE NOT (loc)--() RETURN loc.nid as loc_nid, loc.city as city
         """
-        res = self.graph.run(query)
+        res = self.graph.run(query).data()
         for locs in res:
             logging.info("Remove location {city} with nid {loc_nid}".format(city=locs['city'], loc_nid=locs['loc_nid']))
             self.remove_node(locs['loc_nid'])
@@ -725,17 +749,17 @@ class NeoStore:
     def relations(self, nid):
         """
         This method will check if node with ID has relations. Returns True if there are relations, returns False
-        otherwise.
-        @param nid: ID of the object to check relations
-        @return: Number of relations - if there are relations, False - there are no relations.
+        otherwise. Do not use graph.degree, because there seems to be a strange error when running on graphenedb...
+        :param nid: ID of the object to check relations
+        :return: Number of relations - if there are relations, False - there are no relations.
         """
-        obj_node = self.node(nid)
-        if obj_node:
-            if obj_node.degree():
-                return obj_node.degree()
+        # obj_node = self.node(nid)
+        query = "MATCH (n)--(m) WHERE n.nid='{nid}' return m.nid as m_nid".format(nid=nid)
+        res = self.graph.run(query).data()  # This will return the list of dictionaries with results.
+        if len(res):
+            return len(res)
         else:
-            logging.error("ID {id} cannot be bound to a node".format(id=nid))
-        return False
+            return False
 
     def remove_node(self, nid):
         """
@@ -752,8 +776,8 @@ class NeoStore:
                           .format(node_id=nid))
             return False
         else:
-            query = "MATCH (n) WHERE n.nid={nid} DELETE n"
-            self.graph.run(query, nid=nid)
+            query = "MATCH (n) WHERE n.nid='{nid}' DELETE n".format(nid=nid)
+            self.graph.run(query)
             return True
 
     def remove_node_force(self, nid):
@@ -761,10 +785,10 @@ class NeoStore:
         This method will remove node with ID node_id. The node and the relations to/from the node will also be deleted.
         Use 'remove_node' to remove nodes only when there should be no relations attached to it.
         @param nid: nid of the node
-        @return: True if node is deleted, False otherwise
+        @return: True if node is deleted, False otherwised
         """
-        query = "MATCH (n) WHERE n.nid={nid} DETACH DELETE n"
-        self.graph.run(query, nid=nid)
+        query = "MATCH (n) WHERE n.nid='{nid}' DETACH DELETE n".format(nid=nid)
+        self.graph.run(query)
         return True
 
     def remove_relation(self, start_nid=None, end_nid=None, rel_type=None):

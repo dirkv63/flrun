@@ -863,11 +863,15 @@ def organization_delete(org_id=None):
         return False
     else:
         # Remove Organization
+        logging.debug("trying to remove org")
         ns.remove_node_force(org_id)
         # Check if this results in orphan dates, remove these dates
+        logging.debug("Then trying to remove date")
         ns.clear_date()
         # Check if this results in orphan locations, remove these locations.
+        logging.debug("Trying to delete organization")
         ns.clear_locations()
+        logging.debug("All done")
         logging.info("Organization with id {org_id} removed.".format(org_id=org_id))
         return True
 

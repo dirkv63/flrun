@@ -42,7 +42,7 @@ def init_loghandler(scriptname, logdir, loglevel):
     # Define logfileName
     logfile = logdir + "/" + modulename + "_" + computername + ".log"
     # Set loglevel for bolt driver to warning
-    logging.getLogger("neo4j.bolt").setLevel(logging.WARNING)
+    # logging.getLogger("neo4j.bolt").setLevel(logging.WARNING)
     # logging.getLogger("http").setLevel(logging.WARNING)
     # Configure the root logger
     logger = logging.getLogger()
@@ -66,8 +66,8 @@ def init_loghandler(scriptname, logdir, loglevel):
     # Add Formatter to Rotating File Handler
     rfh.setFormatter(formatter_file)
     # Add Handler to the logger
-    # logger.addHandler(ch)
-    # logger.addHandler(rfh)
+    logger.addHandler(ch)
+    logger.addHandler(rfh)
     return logger
 
 
