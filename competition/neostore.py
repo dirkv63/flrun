@@ -3,8 +3,6 @@ This class consolidates functions related to the neo4J datastore.
 """
 
 import logging
-import os
-import platform
 import sys
 import uuid
 from datetime import datetime, date
@@ -13,7 +11,6 @@ from py2neo import Graph, Node, Relationship, NodeSelector
 from py2neo.database import DBMS
 from py2neo.ext.calendar import GregorianCalendar
 from py2neo import watch
-from py2neo.packages.neo4j.v1 import basic_auth
 
 
 watch("neo4j.http")
@@ -37,38 +34,23 @@ class NeoStore:
         Internal method to create a database connection. This method is called during object initialization.
         @return: Database handle and cursor for the database.
         """
-        """
-        user = os.environ.get("GRAPHENEDB_BOLT_USER", "neo4j")
-        pwd = os.environ.get("GRAPHENEDB_BOLT_PASSWORD", "_m8z8IpJUPyR")
-        local_db = "stratenloop16.db"
+        neo4j_params = {
+            'user': "neo4j",
+            'password': "_m8z8IpJUPyR",
+            'db': "stratenloop16.db"
+        }
+        neo4j_config = {
+            'user': neo4j_params['user'],
+            'password': neo4j_params["password"],
+        }
         # Connect to Graph
-        graphenedb_url = os.environ.get("GRAPHENEDB_URL", "http://{u}:{p}@localhost:7474".format(u=user, p=pwd))
-        graph_url = "{g}/db/data/".format(g=graphenedb_url)
-        """
-        # graphenedb_url = os.environ.get("GRAPHENEDB_BOLT_URL")
-        graphenedb_url = "bolt://hobby-dijdihliojekgbkedhfallol.dbs.graphenedb.com:24786"
-        # graphenedb_user = os.environ.get("GRAPHENEDB_BOLT_USER")
-        graphenedb_user = "app60885199-gphiRm"
-        # graphenedb_pass = os.environ.get("GRAPHENEDB_BOLT_PASSWORD")
-        graphenedb_pass = "0Y5Up4HMgKGNRP5ImVdw"
-        host = "hobby-dijdihliojekgbkedhfallol.dbs.graphenedb.com"
-        bolt_port = 24786
-        http_port = 24789
-        # graph = Graph(graphenedb_url, user=graphenedb_user, password=graphenedb_pass, bolt=True, secure=True,
-        #               bolt_port=24786)
-        graph = Graph(graphenedb_url, host=host, user=graphenedb_user, password=graphenedb_pass, bolt=True, secure=False,
-                      bolt_port=bolt_port, http_port=http_port)
-        # logging.info("Connecting to URL {g}".format(g=graph_url))
-        # graph = Graph(graph_url, bolt=False)
-        # graph = Graph(graph_url, **neo4j_config)
-        """
-        if ('localhost' in graph_url) and (platform.node() == "CAA2GKCOR1"):
-            dbname = DBMS().database_name
-            if dbname != local_db:    # pragma: no cover
-                logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
-                              .format(d=dbname, n=local_db))
-                sys.exit(1)
-        """
+        graph = Graph(**neo4j_config)
+        # Check that we are connected to the expected Neo4J Store - to avoid accidents...
+        dbname = DBMS().database_name
+        if dbname != neo4j_params['db']:    # pragma: no cover
+            logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
+                          .format(d=dbname, n=neo4j_params['db']))
+            sys.exit(1)
         return graph
 
     def clear_locations(self):
@@ -460,9 +442,10 @@ class NeoStore:
 
     def points_per_category(self, cat):
         """
-        Query to get points per category for every participant.
+        This query will for the specified category collect every participation and points that go with the participation
+        for every person in the category.
         :param cat:
-        :return:
+        :return: A cursor with records having the name, nid and points for each participation on every race.
         """
         query = "match (c:MF {name:{cat}})<-[:mf]-(n:Person)-[:is]->(p) " \
                 "return n.name as name, n.nid as nid, p.points as points"
@@ -785,7 +768,7 @@ class NeoStore:
         This method will remove node with ID node_id. The node and the relations to/from the node will also be deleted.
         Use 'remove_node' to remove nodes only when there should be no relations attached to it.
         @param nid: nid of the node
-        @return: True if node is deleted, False otherwised
+        @return: True if node is deleted, False otherwise
         """
         query = "MATCH (n) WHERE n.nid='{nid}' DETACH DELETE n".format(nid=nid)
         self.graph.run(query)

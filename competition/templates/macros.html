@@ -83,3 +83,33 @@
         </table>
     </div>
 {% endmacro %}
+
+{% macro person_races(person, races) %}
+    <div class="col-md-4">
+    <h3>{{ person.label }}</h3>
+        {% if current_user.is_authenticated %}
+            <ul>
+                <li><a href="{{ url_for('main.person_edit', pers_id=person.nid) }}">Aanpassen</a></li>
+            {% if not person.active %}
+                <li><a href="{{ url_for('main.person_delete', pers_id=person.nid) }}">Verwijder</a></li>
+            {% endif %}
+            </ul>
+        {% endif %}
+        <table class="table table-hover">
+            <tr>
+                <th></th>
+                <th>Wedstrijden</th>
+            </tr>
+            {% set cnt = 1 %}
+            {% for row in races %}
+            <tr>
+                <td>{{ cnt }}</td>
+                <td><a href="{{ url_for('main.participant_list', race_id=row.race_id) }}">{{ row.race_label }}
+                    </a>
+                </td>
+            </tr>
+            {% set cnt = cnt + 1 %}
+            {% endfor %}
+        </table>
+    </div>
+{% endmacro %}

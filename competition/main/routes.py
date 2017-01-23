@@ -108,19 +108,13 @@ def person_summary(pers_id):
     :param pers_id: ID of the Participant for which overview info is required.
     :return:
     """
-    part = mg.Person()
-    part.set(pers_id)
-    part_name = part.get()
+    part = mg.Person(pers_id)
+    person_dict = part.get_dict()
     races = mg.races4person(pers_id)
     # Don't count on len(races), since this is competition races. Remove person only if not used across all
     # competitions.
-    if part.active():
-        conns = 1
-    else:
-        conns = 0
     persons = mg.person_list(nr_races=True)
-    return render_template('/person_races_list.html', pers_label=part_name, pers_id=pers_id, races=races,
-                           conns=conns, persons=persons)
+    return render_template('/person_races_list.html', person=person_dict, races=races, persons=persons)
 
 
 @main.route('/person/<pers_id>/delete')
@@ -438,9 +432,18 @@ def hoofdwedstrijd_set(org_id, race_id):
 
 
 @main.route('/result/<cat>', methods=['GET'])
-def results(cat):
+@main.route('/result/<cat>/<person_id>', methods=['GET'])
+def results(cat, person_id=None):
     result_set = mg.results_for_category(cat)
-    return render_template("result_list.html", result_set=result_set, cat=cat)
+    param_dict = dict(result_set=result_set, cat=cat)
+    if person_id:
+        races = mg.races4person(person_id)
+        person = mg.Person(person_id)
+        person_dict = person.get_dict()
+        param_dict["races"] = races
+        param_dict["person"] = person_dict
+    # return render_template("result_list.html", result_set=result_set, cat=cat, races=races)
+    return render_template("result_list.html", **param_dict)
 
 
 @main.errorhandler(404)

@@ -316,6 +316,20 @@ class Person:
     def get(self):
         return self.name
 
+    def get_dict(self):
+        """
+        This function will return a dictionary with the person attributes. This can then be used for display in a
+        html macro
+        :return: Dictionary with person attributes nid, label, active (True: Active user, cannot be removed,
+        False: inactive user, can be removed).
+        """
+        person_dict = dict(
+            nid=self.person_id,
+            label=self.get(),
+            active=self.active()
+        )
+        return person_dict
+
     def get_mf(self):
         """
         This method will get 'MF' link for the person, and translates the value to 'man' or 'vrouw'.
@@ -1196,22 +1210,22 @@ def results_for_category(cat):
     :param cat: Category to calculate the points
     :return: Sorted list with tuples (name, points, number of races).
     """
-    # For neostore function!
-    # query = "match (c:MF {name:{cat})<-[:mf]-(n:Person)-[:is]->(p) return n.name, p.points"
-    # Get list back, then process here:
     res = ns.points_per_category(cat)
     # 1. Add points to list per person
     result_list = {}
     result_total = []
+    nid4name = {}
     while res.forward():
         rec = res.current()
+        # Remember the nid for this participant.
+        nid4name[rec["name"]] = rec["nid"]
         try:
             result_list[rec["name"]].append(rec["points"])
         except KeyError:
             result_list[rec["name"]] = [rec["points"]]
     # 2. Calculate points per person
     for name in result_list:
-        result_total.append([name, points_sum(result_list[name]), len(result_list[name]), rec["nid"]])
+        result_total.append([name, points_sum(result_list[name]), len(result_list[name]), nid4name[name]])
     result_sorted = sorted(result_total, key=lambda x: -x[1])
     return result_sorted
 
