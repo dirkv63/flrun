@@ -31,7 +31,7 @@ class ParticipantAdd(Form):
     name = SelectField('Naam', coerce=str)
     place = StringField('Plaats')
     time = StringField('Tijd')
-    other = StringField('Opm.')
+    remark = StringField('Opm.')
     prev_runner = SelectField('Aankomst na:', coerce=str)
     submit = SubmitField('OK')
 

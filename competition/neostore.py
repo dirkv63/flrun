@@ -10,10 +10,10 @@ from pandas import DataFrame
 from py2neo import Graph, Node, Relationship, NodeSelector
 from py2neo.database import DBMS
 from py2neo.ext.calendar import GregorianCalendar
-from py2neo import watch
+# from py2neo import watch
 
 
-watch("neo4j.http")
+# watch("neo4j.http")
 
 
 class NeoStore:
@@ -37,7 +37,7 @@ class NeoStore:
         neo4j_params = {
             'user': "neo4j",
             'password': "_m8z8IpJUPyR",
-            'db': "stratenloop16.db"
+            'db': "stratenloop15.db"
         }
         neo4j_config = {
             'user': neo4j_params['user'],
@@ -703,7 +703,7 @@ class NeoStore:
         This method will update the node's properties with the properties specified. Modified properties will be
         updated, new properties will be added and removed properties will be deleted.
         nid needs to be part of the properties dictionary.
-        @param properties: Dictionary of the property set for the node. 'nid' cannot be part of it, but will be set.
+        @param properties: Dictionary of the property set for the node. 'nid' property is mandatory.
         @return: True if successful update, False otherwise.
         """
         try:

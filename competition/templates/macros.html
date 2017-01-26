@@ -33,28 +33,32 @@
     <div class="col-md-5">
         <table class="table table-hover">
             <tr>
-                <th>Plaats</th>
+                <th></th>
                 <th>Naam</th>
+                <th>OLSE</th>
                 <th>Punten</th>
                 {% if current_user.is_authenticated %}
                     <th>Verwijderen</th>
                 {% endif %}
             </tr>
             {% if finishers is iterable %}
-            {% for row in finishers %}
+            {% for (person, part) in finishers %}
             <tr>
                 <td>{{ loop.index }}</td>
                 <td>
-                    <a href="{{ url_for('main.person_summary', pers_id=row[0]) }}">
-                        {{ row[1] }}
+                    <a href="{{ url_for('main.person_summary', pers_id=person['nid']) }}">
+                        {{ person['label'] }}
                     </a>
                 </td>
                 <td>
-                    {{ row[2] }}
+                    {{ part['rel_pos'] }}
+                </td>
+                <td>
+                    {{ part['points'] }}
                 </td>
                 {% if current_user.is_authenticated %}
                     <td>
-                        <a href="{{ url_for('main.participant_remove', pers_id=row[0], race_id=race_id) }}">
+                        <a href="{{ url_for('main.participant_remove', pers_id=person['nid'], race_id=race_id) }}">
                             <img src="/static/button_cancel.png" width="25" height="25">
                         </a>
                     </td>

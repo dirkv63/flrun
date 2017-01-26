@@ -329,8 +329,10 @@ def participant_list(race_id):
     :return:
     """
     race_label = mg.race_label(race_id)
+    org_id = mg.get_org_id(race_id=race_id)
     finishers = mg.participant_seq_list(race_id, add_points=True)
-    return render_template('participant_list.html', finishers=finishers, race_label=race_label, race_id=race_id)
+    return render_template('participant_list.html', finishers=finishers, race_label=race_label, race_id=race_id,
+                           org_id=org_id)
 
 
 @main.route('/participant/<race_id>/add', methods=['GET', 'POST'])
@@ -349,13 +351,19 @@ def participant_add(race_id):
         form = ParticipantAdd()
         # Add collected info as participant to race.
         runner_id = form.name.data
-        # runner_obj = mg.Person()
-        # runner_obj.set(runner_id)
-        # runner = runner_obj.get()
         prev_runner_id = form.prev_runner.data
         # Create the participant node, connect to person and to race.
         part = mg.Participant(race_id=race_id, pers_id=runner_id)
         part.add(prev_pers_id=prev_runner_id)
+        # Collect properties for this participant
+        props = {}
+        if form.place.data:
+            props['pos'] = form.place.data
+        if form.time.data:
+            props['time'] = form.time.data
+        if form.remark.data:
+            props['remark'] = form.remark.data
+        part.set_props(**props)
         return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.

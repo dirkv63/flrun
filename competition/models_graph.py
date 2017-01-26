@@ -85,6 +85,10 @@ def load_user(user_id):
 
 
 class Participant:
+
+    # List of calculated properties for the participant node.
+    calc_props = ["nid", "points", "rel_pos"]
+
     def __init__(self, part_id=None, race_id=None, pers_id=None):
         """
         A Participant Object is the path: (person)-[:is]->(participant)-[:participates]->(race).
@@ -93,10 +97,10 @@ class Participant:
         participant id. The application must call the 'add' method to add this participant in the correct sequence.
         At the end of initialization, participant node, id, race id and person id are set.
         When a participant is added or deleted, then the points for the race will be recalculated.
-        @param part_id: nid of the participant
-        @param race_id: nid of the race
-        @param pers_id: nid of the person
-        @return: Participant object with participant node and nid, race nid and person nid are set.
+        :param part_id: nid of the participant
+        :param race_id: nid of the race
+        :param pers_id: nid of the person
+        :return: Participant object with participant node and nid, race nid and person nid are set.
         """
         # Todo: rework classes so that objects are kept, not nids - replace race_nid with race_obj, ...
         self.part_node = None
@@ -126,9 +130,16 @@ class Participant:
     def get_id(self):
         """
         This method will return the Participant Node ID of this person's participation in the race
-        @return: Participant Node ID (nid)
+        :return: Participant Node ID (nid)
         """
         return self.part_id
+
+    def get_person_nid(self):
+        """
+        This method will return the Person Node ID for this participant.
+        :return:
+        """
+        return self.pers_id
 
     def set_part_race(self):
         """
@@ -144,6 +155,25 @@ class Participant:
         pers_node = ns.node(self.pers_id)
         ns.create_relation(from_node=pers_node, rel="is", to_node=self.part_node)
         return self.part_id
+
+    def set_props(self, **props):
+        """
+        This method will set the properties for the node. The calculated properties (points, rel_pos, ...) will be
+        collected from the participant node and added to the list of properties that are set by the user.
+        :param props: list of user properties for the participant node.
+        :return:
+        """
+        # Get participant node to ensure latest values for all calculated properties.
+        # Ignore the user configurable properties, since these are managed in the **props dictionary.
+        self.part_node = ns.node(self.part_id)
+        # Convert node to node-dictionary. This ensures that KeyError exception can be used.
+        part_dict = dict(self.part_node)
+        for attrib in self.calc_props:
+            try:
+                props[attrib] = part_dict[attrib]
+            except KeyError:
+                pass
+        return ns.node_update(**props)
 
     @staticmethod
     def set_relation(next_id=None, prev_id=None):
@@ -184,7 +214,7 @@ class Participant:
                 # This can be linked to a next_arrival. Current participant will break this link
                 next_arrival_nid = prev_arrival_obj.next_runner()
                 if next_arrival_nid:
-                    ns.remove_relation(start_nid=next_arrival_nid, end_nid=prev_pers_id, rel_type="after")
+                    ns.remove_relation(start_nid=next_arrival_nid, end_nid=prev_arrival_nid, rel_type="after")
             else:
                 # This participant is the first one in the race. Find the next participant.
                 # Be careful, method 'participant_first_id' requires valid chain. So this needs to run before
@@ -1093,7 +1123,9 @@ def points_position(pos):
 
 def points_for_race(race_id):
     """
-    This method will calculate the points for a race. If race type is 'Deelname', then points_deelname function is
+    This method will calculate the points for a race and the relative position. The relative position is the position
+    in relation to other OLSE runners in the race.
+    If race type is 'Deelname', then points_deelname function is
     called. Else points for every race in the organization need to be recalculated.
     :param race_id:
     :return:
@@ -1132,8 +1164,10 @@ def points_bijwedstrijd(race_id):
     main_race_id = ns.get_main_race_id(race_id)
     d_parts = ns.get_nr_participants(race_id=main_race_id, cat="Dames")
     m_parts = ns.get_nr_participants(race_id=main_race_id, cat="Heren")
-    d_points = points_position(d_parts+1)
-    m_points = points_position(m_parts+1)
+    d_rel_pos = d_parts + 1
+    m_rel_pos = m_parts + 1
+    d_points = points_position(d_rel_pos)
+    m_points = points_position(m_rel_pos)
     # Now add points for everyone in the race.
     node_list = ns.get_participant_seq_list(race_id)
     if node_list:
@@ -1141,9 +1175,11 @@ def points_bijwedstrijd(race_id):
             mf = get_cat4part(part["nid"])
             if mf == "Heren":
                 points = m_points
+                rel_pos = m_rel_pos
             else:
                 points = d_points
-            props = dict(nid=part["nid"], points=points)
+                rel_pos = d_rel_pos
+            props = dict(nid=part["nid"], points=points, rel_pos=rel_pos)
             ns.node_update(**props)
     return
 
@@ -1163,8 +1199,9 @@ def points_hoofdwedstrijd(race_id):
             mf = get_cat4part(part["nid"])
             cnt[mf] += 1
             points = points_position(cnt[mf])
+            rel_pos = cnt[mf]
             # Set points for participant
-            props = dict(nid=part["nid"], points=points)
+            props = dict(nid=part["nid"], points=points, rel_pos=rel_pos)
             ns.node_update(**props)
     return
 
@@ -1233,25 +1270,23 @@ def results_for_category(cat):
 def participant_seq_list(race_id, add_points=None):
     """
     This method will collect the people in a race in sequence of arrival.
-    @param race_id: nid of the race for which the participants are returned in sequence of arrival.
-    @param add_points: If set to True, then participant points will be added to the participant item. Otherwise no
+    :param race_id: nid of the race for which the participants are returned in sequence of arrival.
+    :param add_points: If set to True, then participant points will be added to the participant item. Otherwise no
      participant points will be set and the list can be used as a selection list (e.g. in participant_after_list).
-    @return: List of participant items in the race. Each item is a list of person nid, person name and the points
-     for the person in the race. False if no participants in the list.
+    :return: List of participants items in the race. Each item is a tuple of the person dictionary (from the person
+     object) and the participant dictionary (the properties of the participant node). False if no participants in the
+     list.
     """
     node_list = ns.get_participant_seq_list(race_id)
     if node_list:
         finisher_list = []
         # If there are finishers, then recordlist has one element, which is a nodelist
         for part in node_list:
-            # Get person node for this participant
-            pers_nid = ns.get_start_node(end_node_id=part["nid"], rel_type="is")
-            pers_node = ns.node(pers_nid)
-            pers_name = pers_node["name"]
-            pers_obj = [pers_nid, pers_name]
-            if add_points:
-                pers_obj.append(part["points"])
-            finisher_list.append(pers_obj)
+            part_obj = Participant(part_id=part["nid"])
+            person_obj = Person(person_id=part_obj.get_person_nid())
+            person_dict = person_obj.get_dict()
+            pers_part_tuple = (person_dict, dict(part))
+            finisher_list.append(pers_part_tuple)
         return finisher_list
     else:
         return False
@@ -1266,7 +1301,8 @@ def participant_after_list(race_id):
     'eerste aankomer'.
     """
     eerste = [-1, 'Eerste aankomst']
-    finisher_list = participant_seq_list(race_id)
+    finisher_tuple = participant_seq_list(race_id)
+    finisher_list = [[person['nid'], person['label']] for (person, part) in finisher_tuple]
     if finisher_list:
         finisher_list.insert(0, eerste)
         return finisher_list
@@ -1295,9 +1331,10 @@ def participant_first_id(race_id):
     @param race_id: Node ID of the race.
     @return: Node ID of the first person so far in the race, False if no participant registered for this race.
     """
-    finisher_list = participant_seq_list(race_id)
-    if finisher_list:
-        person_id = finisher_list[0][0]
+    finisher_tuple = participant_seq_list(race_id)
+    if finisher_tuple:
+        (person, part) = finisher_tuple[0]
+        person_id = person['nid']
         return person_id
     else:
         return False
