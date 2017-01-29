@@ -35,25 +35,33 @@
             <tr>
                 <th></th>
                 <th>Naam</th>
-                <th>OLSE</th>
-                <th>Punten</th>
+                <th style="text-align:right">Punten</th>
                 {% if current_user.is_authenticated %}
-                    <th>Verwijderen</th>
+                    <th></th>
                 {% endif %}
             </tr>
             {% if finishers is iterable %}
             {% for (person, part) in finishers %}
             <tr>
-                <td>{{ loop.index }}</td>
+                <td style="text-align:right">
+                    {% if 'pos' in part %}
+                        {{ part.pos }}.
+                    {% elif 'rel_pos' in part %}
+                        {{ part.rel_pos }}.
+                    {% else %}
+                        {{ loop.index }}.
+                    {% endif %}
+                </td>
                 <td>
-                    <a href="{{ url_for('main.person_summary', pers_id=person['nid']) }}">
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('main.participant_edit', part_id=part['nid']) }}">
+                {% endif %}
                         {{ person['label'] }}
+                {% if current_user.is_authenticated %}
                     </a>
+                {% endif %}
                 </td>
-                <td>
-                    {{ part['rel_pos'] }}
-                </td>
-                <td>
+                <td style="text-align:right">
                     {{ part['points'] }}
                 </td>
                 {% if current_user.is_authenticated %}
@@ -102,14 +110,34 @@
         <table class="table table-hover">
             <tr>
                 <th></th>
-                <th>Wedstrijden</th>
+                <th>Organisatie</th>
+                <th>Plaats</th>
+                <th>Wedstrijd</th>
+                <th>Type</th>
+                <th>Punten</th>
             </tr>
             {% set cnt = 1 %}
             {% for row in races %}
             <tr>
                 <td>{{ cnt }}</td>
-                <td><a href="{{ url_for('main.participant_list', race_id=row.race_id) }}">{{ row.race_label }}
+                <td>
+                    <a href="{{ url_for('main.race_list',  org_id=row.org.nid) }}">
+                        {{ row.org.name }}
                     </a>
+                </td>
+                <td>
+                    {{ row.loc.city }}
+                </td>
+                <td>
+                    <a href="{{ url_for('main.participant_list', race_id=row.race.nid) }}">
+                        {{ row.race.name }}
+                    </a>
+                </td>
+                <td>
+                    {{ row.racetype.name }}
+                </td>
+                <td style="text-align:right">
+                    {{ row.part.points }}
                 </td>
             </tr>
             {% set cnt = cnt + 1 %}

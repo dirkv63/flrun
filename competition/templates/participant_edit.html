@@ -18,9 +18,8 @@
 {{ macros.race_finishers(finishers, race_id) }}
 {% if current_user.is_authenticated %}
     <div class="col-md-3">
+        <h3>{{ person['label'] }}</h3>
         {{ wtf.quick_form(form) }}
-        <br>
-        <a href="{{ url_for('main.person_add') }}" class="btn btn-default" role="button">Deelnemer Toevoegen</a>
     </div>
 </div>
 {% endif %}

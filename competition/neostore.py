@@ -37,7 +37,7 @@ class NeoStore:
         neo4j_params = {
             'user': "neo4j",
             'password': "_m8z8IpJUPyR",
-            'db': "stratenloop15.db"
+            'db': "stratenloop16.db"
         }
         neo4j_config = {
             'user': neo4j_params['user'],
@@ -517,19 +517,33 @@ class NeoStore:
 
     def get_race4person(self, person_id):
         """
-        This method will get a list of race_ids per person, sorted on date.
-        @param person_id:
-        @return: list of Race IDs (nids). Each nid can be used to get the Race Label.
+        This method will get a list of race_ids per person, sorted on date. The information per race will be provided in
+        a list of dictionaries. This includes date, organization, type of race, and race results.
+        :param person_id:
+        :return: list of Participant (part),race, date, organization (org) and racetype Node dictionaries in date
+        sequence.
         """
+        race4person = []
         query = """
-            MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race)
-                  <-[:has]-(org:Organization)-[:On]->(day:Day)
+            MATCH (person:Person)-[:is]->(part:Participant)-[:participates]->(race:Race),
+                  (race)<-[:has]-(org:Organization)-[:On]->(day:Day),
+                  (race)-[:type]->(racetype:RaceType),
+                  (org)-[:In]->(loc:Location)
             WHERE person.nid='{pers_id}'
-            RETURN race.nid as race_id
+            RETURN race, part, day, org, racetype, loc
             ORDER BY day.key ASC
         """.format(pers_id=person_id)
-        res = self.graph.run(query).data()
-        return res
+        cursor = self.graph.run(query)
+        while cursor.forward():
+            rec = cursor.current()
+            res_dict = dict(part=dict(rec['part']),
+                            race=dict(rec['race']),
+                            date=dict(rec['day']),
+                            org=dict(rec['org']),
+                            racetype=dict(rec['racetype']),
+                            loc=dict(rec['loc']))
+            race4person.append(res_dict)
+        return race4person
 
     def get_relations(self):
         """

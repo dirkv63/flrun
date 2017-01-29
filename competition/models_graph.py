@@ -141,6 +141,30 @@ class Participant:
         """
         return self.pers_id
 
+    def get_props(self):
+        """
+        This method will get the properties for the node. All properties for the participant node will be collected,
+        then the calculated properties (points, rel_pos, ...) will be removed from the dictionary.
+        collected from the participant node and added to the list of properties that are set by the user.
+        :return:
+        """
+        # Get participant node to ensure latest values for all calculated properties.
+        # Ignore the user configurable properties, since these are managed in the **props dictionary.
+        self.part_node = ns.node(self.part_id)
+        # Convert node to node-dictionary.
+        part_dict = dict(self.part_node)
+        # Remove calculated properties from dictionary
+        for attrib in self.calc_props:
+            part_dict.pop(attrib, None)
+        return part_dict
+
+    def get_race_nid(self):
+        """
+        This method will return the Race Node ID for the participant.
+        :return: Nid for the Race node.
+        """
+        return self.race_id
+
     def set_part_race(self):
         """
         This method will link the person to the race. This is done by creating an Participant Node. This function will
@@ -1013,14 +1037,12 @@ def race_label(race_id):
 def races4person(pers_id):
     """
     This method will get the list of races for the person.
-
-    @param pers_id: Node ID for the person
-
-    @return: list with dictionary per race. The dictionary has fields race_label and race_id.
+    :param pers_id: Node ID for the person
+    :return: list with dictionary per race. The dictionary has fields race_label and race_id.
     """
     recordlist = ns.get_race4person(pers_id)
-    races = [{'race_id': record["race_id"], 'race_label': race_label(record["race_id"])} for record in recordlist]
-    return races
+    # races = [{'race_id': record["race_id"], 'race_label': race_label(record["race_id"])} for record in recordlist]
+    return recordlist
 
 
 def race_delete(race_id=None):

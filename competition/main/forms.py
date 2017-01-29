@@ -28,11 +28,20 @@ class RaceAdd(Form):
 
 
 class ParticipantAdd(Form):
+    """
+    Form to Add a participant to a race. Timefield is not included. It is not part of wtforms 2 (wait for wtforms
+    version 3), it is currently not used and it may not be required in the future.
+    """
     name = SelectField('Naam', coerce=str)
-    place = StringField('Plaats')
-    time = StringField('Tijd')
+    pos = StringField('Plaats')
     remark = StringField('Opm.')
     prev_runner = SelectField('Aankomst na:', coerce=str)
+    submit = SubmitField('OK')
+
+
+class ParticipantEdit(Form):
+    pos = StringField('Plaats')
+    remark = StringField('Opm.')
     submit = SubmitField('OK')
 
 

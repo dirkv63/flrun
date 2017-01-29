@@ -86,6 +86,10 @@ class DataStore:
              name text,
              nid text unique not null,
              points integer,
+             pos integer,
+             pwd text,
+             rel_pos integer,
+             remark text,
              weight text,
              year integer
             )

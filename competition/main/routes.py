@@ -9,6 +9,13 @@ from .forms import *
 from . import main
 # from ..models_sql import User
 
+# The participant properties that can be set (not calculated)
+"""
+**Time** is currently not part of the participant properties. It is not part of wtforms 2, wtforms 3 is not yet
+released for pip and it may not be required at all: the data may not always be available, and a hassle to add the data.
+"""
+part_config_props = ["pos", "remark"]
+
 
 @main.route('/login', methods=['GET', 'POST'])
 def login():
@@ -343,7 +350,7 @@ def participant_add(race_id):
     By default the person is appended as tha last position in the race, so the previous person was the last one in the
     race. First position is specified as previous runner equals -1.
     :param race_id: ID of the race.
-    :return:
+    :return: The person is added or modified as a participant to the race.
     """
     race_label = mg.race_label(race_id)
     if request.method == "POST":
@@ -357,29 +364,62 @@ def participant_add(race_id):
         part.add(prev_pers_id=prev_runner_id)
         # Collect properties for this participant
         props = {}
-        if form.place.data:
-            props['pos'] = form.place.data
-        if form.time.data:
-            props['time'] = form.time.data
-        if form.remark.data:
-            props['remark'] = form.remark.data
+        for prop in part_config_props:
+            if form.data[prop]:
+                props[prop] = form.data[prop]
         part.set_props(**props)
         return redirect(url_for('main.participant_add', race_id=race_id))
     else:
         # Get method, initialize page.
-        # current_app.logger.debug("Initialize page")
         org_id = mg.get_org_id(race_id)
         part_last = mg.participant_last_id(race_id)
+        # Initialize Form
         form = ParticipantAdd(prev_runner=part_last)
         form.name.choices = mg.next_participant(race_id)
         form.prev_runner.choices = mg.participant_after_list(race_id)
         finishers = mg.participant_seq_list(race_id, add_points=True)
-        if finishers:
-            remove_race = "No"
-        else:
-            remove_race = "Yes"
         return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers,
-                               race_label=race_label, remove_race=remove_race, org_id=org_id)
+                               race_label=race_label, org_id=org_id)
+
+
+@main.route('/participant/edit/<part_id>', methods=['GET', 'POST'])
+@login_required
+def participant_edit(part_id):
+    """
+    This method allows to edit a participant in the race. It is similar to the participant_add, but with sufficient
+    differences to justify a separate method.
+    :param part_id: NID of the participant. This is sufficient to find Person and Race objects.
+    :return:
+    """
+    part = mg.Participant(part_id=part_id)
+    person_nid = part.get_person_nid()
+    person = mg.Person(person_id=person_nid)
+    person_dict = person.get_dict()
+    race_id = part.get_race_nid()
+    race_label = mg.race_label(race_id)
+    if request.method == "POST":
+        # Call form to get input values
+        form = ParticipantEdit()
+        # Collect properties for this participant
+        props = {}
+        for prop in part_config_props:
+            try:
+                props[prop] = form.data[prop]
+            except KeyError:
+                pass
+        part.set_props(**props)
+        return redirect(url_for('main.participant_add', race_id=race_id))
+    else:
+        # Get method, initialize page.
+        org_id = mg.get_org_id(race_id)
+        # Initialize Form, populate with keyword arguments
+        # (http://wtforms.readthedocs.io/en/latest/crash_course.html#how-forms-get-data)
+        part_props = part.get_props()
+        form = ParticipantEdit(**part_props)
+        finishers = mg.participant_seq_list(race_id, add_points=True)
+        # There must be finishers, since I can update one of them
+        return render_template('participant_edit.html', form=form, race_id=race_id, finishers=finishers,
+                               race_label=race_label, org_id=org_id, person=person_dict)
 
 
 @main.route('/participant/remove/<race_id>/<pers_id>', methods=['GET', 'POST'])
