@@ -381,7 +381,8 @@ class NeoStore:
         """
         This method will get a list of all organizations. Each item in the list is a dictionary with fields date,
         organization, city, id (for organization nid) and type.
-        @return:
+
+        :return:
         """
         query = """
             MATCH (day:Day)<-[:On]-(org:Organization)-[:In]->(loc:Location),
@@ -519,7 +520,9 @@ class NeoStore:
         """
         This method will get a list of race_ids per person, sorted on date. The information per race will be provided in
         a list of dictionaries. This includes date, organization, type of race, and race results.
+
         :param person_id:
+
         :return: list of Participant (part),race, date, organization (org) and racetype Node dictionaries in date
         sequence.
         """

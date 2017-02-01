@@ -1,0 +1,68 @@
+{% extends "layout.html" %}
+
+{% block page_content %}
+<div class="row">
+    <h3>{{ cat }} - Overzicht</h3>
+    <table class="table table-hover table-bordered">
+        <tr>
+            <th rowspan="2">Plaats</th>
+            <th rowspan="2">Naam</th>
+            <th rowspan="2">#</th>
+            <th rowspan="2">Punten</th>
+            {% for org in org_list %}
+                <th colspan="3">
+                    {{ org.organization }}<br>{{ org.date }}
+                </th>
+            {% endfor %}
+        </tr>
+        <tr>
+            {% for org in org_list %}
+                <th>
+                    wedstr.
+                </th>
+                <th>
+                    pos
+                </th>
+                <th>
+                    ptn
+                </th>
+            {% endfor %}
+        </tr>
+
+        {% set cnt = 1 %}
+        {% for row in result_set %}
+        <tr>
+            <td>{{ cnt }}</td>
+            <td>{% if row[2] > 6 %}<b>{% endif %}
+                <a href="{{ url_for('main.results', cat=cat, person_id=row[3]) }}">
+                    {{ row[0] }}
+                </a>
+                {% if row[2] > 6 %}</b>{% endif %}
+            </td>
+            <td style="white-space:nowrap">{{ row[1] }}</td>
+            <td style="white-space:nowrap">{{ row[2] }}</td>
+            {% for org in org_list %}
+                {% if result4person[row[3]][org.id] is defined %}
+                    {% set race = result4person[row[3]][org.id].race %}
+                    {% set part = result4person[row[3]][org.id].part %}
+                    <td style="white-space:nowrap">
+                        {{ race.name }}
+                    </td>
+                    <td style="white-space:nowrap">
+                        {{ part.pos }}
+                    </td>
+                    <td>
+                        {{ part.points }}
+                    </td>
+                {% else %}
+                    <td></td>
+                    <td></td>
+                    <td></td>
+                {% endif %}
+            {% endfor %}
+        </tr>
+        {% set cnt = cnt + 1 %}
+        {% endfor %}
+    </table>
+</div>
+{% endblock %}

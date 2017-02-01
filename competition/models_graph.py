@@ -374,6 +374,7 @@ class Person:
         """
         This function will return a dictionary with the person attributes. This can then be used for display in a
         html macro
+
         :return: Dictionary with person attributes nid, label, active (True: Active user, cannot be removed,
         False: inactive user, can be removed).
         """
@@ -913,7 +914,8 @@ def organization_list():
     """
     This function will return a list of organizations. Each item in the list is a dictionary with fields date,
     organization, city, id (for organization nid) and type.
-    @return:
+
+    :return:
     """
     return ns.get_organization_list()
 
@@ -1036,20 +1038,45 @@ def race_label(race_id):
 
 def races4person(pers_id):
     """
-    This method will get the list of races for the person.
-    :param pers_id: Node ID for the person
-    :return: list with dictionary per race. The dictionary has fields race_label and race_id.
+    This method is pass-thru for a method in neostore module.
+    This method will get a list of race_ids per person, sorted on date. The information per race will be provided in
+    a list of dictionaries. This includes date, organization, type of race, and race results.
+
+    :param person_id:
+
+    :return: list of Participant (part),race, date, organization (org) and racetype Node dictionaries in date
+    sequence.
     """
     recordlist = ns.get_race4person(pers_id)
     # races = [{'race_id': record["race_id"], 'race_label': race_label(record["race_id"])} for record in recordlist]
     return recordlist
 
 
+def races4person_org(pers_id):
+    """
+    This method gets the result of races4person method, then converts the result in a dictionary with key org_nid and
+    value race dictionary.
+
+    :param person_id:
+
+    :return: Dictionary with key org_nid and value dictionary of node race attributes for the person. This can be used
+    for the Results Overview page.
+    """
+    races = races4person(pers_id=pers_id)
+    race_org = {}
+    for race in races:
+        race_org[race["org"]["nid"]] = dict(
+            race=race["race"],
+            part=race["part"]
+        )
+    return race_org
+
+
 def race_delete(race_id=None):
     """
     This method will delete a race. This can be done only if there are no more participants attached to the
     race.
-    @param race_id: Node ID of the race to be removed.
+     race_id: Node ID of the race to be removed.
     @return: True if race is removed, False otherwise.
     """
     if ns.get_start_nodes(end_node_id=race_id, rel_type="participates"):
@@ -1266,8 +1293,10 @@ def points_sum(point_list):
 def results_for_category(cat):
     """
     This method will calculate the points for all participants in a category.
+
     :param cat: Category to calculate the points
-    :return: Sorted list with tuples (name, points, number of races).
+
+    :return: Sorted list with tuples (name, points, number of races, nid for person).
     """
     res = ns.points_per_category(cat)
     # 1. Add points to list per person
