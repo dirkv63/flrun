@@ -377,9 +377,16 @@ def participant_add(race_id):
         form = ParticipantAdd(prev_runner=part_last)
         form.name.choices = mg.next_participant(race_id)
         form.prev_runner.choices = mg.participant_after_list(race_id)
+        param_dict = dict(
+            form=form,
+            race_id=race_id,
+            race_label=race_label,
+            org_id=org_id
+        )
         finishers = mg.participant_seq_list(race_id, add_points=True)
-        return render_template('participant_add.html', form=form, race_id=race_id, finishers=finishers,
-                               race_label=race_label, org_id=org_id)
+        if finishers:
+            param_dict['finishers'] = finishers
+        return render_template('participant_add.html', **param_dict)
 
 
 @main.route('/participant/edit/<part_id>', methods=['GET', 'POST'])

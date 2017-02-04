@@ -1321,9 +1321,12 @@ def results_for_category(cat):
 def participant_seq_list(race_id, add_points=None):
     """
     This method will collect the people in a race in sequence of arrival.
+
     :param race_id: nid of the race for which the participants are returned in sequence of arrival.
+
     :param add_points: If set to True, then participant points will be added to the participant item. Otherwise no
      participant points will be set and the list can be used as a selection list (e.g. in participant_after_list).
+
     :return: List of participants items in the race. Each item is a tuple of the person dictionary (from the person
      object) and the participant dictionary (the properties of the participant node). False if no participants in the
      list.
@@ -1347,19 +1350,20 @@ def participant_after_list(race_id):
     """
     This method will return the participant sequence list as a SelectField list. It will call participant_seq_list
     and 'prepend' a value for 'eerste aankomer' (value -1).
-    @param race_id: Node ID of the race
-    @return: List of the Person objects (list of Person nid and Person name) in sequence of arrival and value for
+
+    :param race_id: Node ID of the race
+
+    :return: List of the Person objects (list of Person nid and Person name) in sequence of arrival and value for
     'eerste aankomer'.
     """
     eerste = [-1, 'Eerste aankomst']
     finisher_tuple = participant_seq_list(race_id)
-    finisher_list = [[person['nid'], person['label']] for (person, part) in finisher_tuple]
-    if finisher_list:
+    if finisher_tuple:
+        finisher_list = [[person['nid'], person['label']] for (person, part) in finisher_tuple]
         finisher_list.insert(0, eerste)
-        return finisher_list
     else:
         finisher_list = [eerste]
-        return finisher_list
+    return finisher_list
 
 
 def participant_last_id(race_id):
@@ -1367,8 +1371,10 @@ def participant_last_id(race_id):
     This method will return the nid of the last participant in the race. It calls check participant_after_list and
     fetches the last ID of the runner. This way no special treatment is required in case there are no participants. The
     ID of the last runner will redirect to -1 then.
-    @param race_id: Node nid of the race.
-    @return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.
+
+    :param race_id: Node nid of the race.
+
+    :return: nid of the Person Node of the last finisher so far in the race, -1 if no finishers registered yet.
     """
     finisher_list = participant_after_list(race_id)
     part_arr = finisher_list.pop()

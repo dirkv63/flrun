@@ -3,6 +3,7 @@ This class consolidates functions related to the neo4J datastore.
 """
 
 import logging
+import os
 import sys
 import uuid
 from datetime import datetime, date
@@ -23,13 +24,14 @@ class NeoStore:
         Method to instantiate the class in an object for the neostore.
         @return: Object to handle neostore commands.
         """
-        self.graph = self._connect2db()
+        # self.graph = self.connect2db()
+        self.graph = self.connect2graphene()
         self.calendar = GregorianCalendar(self.graph)
         self.selector = NodeSelector(self.graph)
         return
 
     @staticmethod
-    def _connect2db():
+    def connect2db():
         """
         Internal method to create a database connection. This method is called during object initialization.
         @return: Database handle and cursor for the database.
@@ -51,6 +53,12 @@ class NeoStore:
             logging.fatal("Connected to Neo4J database {d}, but expected to be connected to {n}"
                           .format(d=dbname, n=neo4j_params['db']))
             sys.exit(1)
+        return graph
+
+    @staticmethod
+    def connect2graphene():
+        graphenedb_url = os.environ.get("GRAPHENEDB_URL")
+        graph = Graph(graphenedb_url, bolt=False)
         return graph
 
     def clear_locations(self):
