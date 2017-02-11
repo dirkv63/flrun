@@ -1,6 +1,5 @@
 import unittest
-from competition import create_app, db
-from competition.models_sql import User
+from competition import create_app, models_graph as mg
 
 
 class UserModelTestCase(unittest.TestCase):
@@ -9,11 +8,9 @@ class UserModelTestCase(unittest.TestCase):
         self.app_ctx = self.app.app_context()
         self.app_ctx.push()
         self.client = self.app.test_client(use_cookies=True)
-        db.create_all()
-        User.register('dirk', 'olse')
+        mg.User().register('dirk', 'olse')
 
     def tearDown(self):
-        db.drop_all()
         self.app_ctx.pop()
 
     def get_login(self):
@@ -40,7 +37,6 @@ class UserModelTestCase(unittest.TestCase):
         """
         r = self.client.get('/logout', follow_redirects=True)
         self.assertEqual(r.status_code, 200)
-        self.assertTrue('<h1>Header for Running Competition</h1>' in r.get_data(as_text=True))
         self.assertFalse('Logout' in r.get_data(as_text=True))
         self.assertTrue('Login' in r.get_data(as_text=True))
         return
@@ -48,7 +44,7 @@ class UserModelTestCase(unittest.TestCase):
     def test_login_logout(self):
         # Login
         r = self.get_login()
-        self.assertTrue('<h1>Header for Running Competition</h1>' in r.get_data(as_text=True))
+        self.assertTrue('<h1>Kalender</h1>' in r.get_data(as_text=True))
         self.assertTrue('Logout' in r.get_data(as_text=True))
         self.assertFalse('Login' in r.get_data(as_text=True))
         # Logout
@@ -56,7 +52,7 @@ class UserModelTestCase(unittest.TestCase):
 
     def test_person_list(self):
         # Anonymous user, get person list
-        # Go to Overview Person, login required
+        # Go to Deelnemers
         r = self.client.get('/person/list', follow_redirects=True)
         self.assertEqual(r.status_code, 200)
         self.assertTrue('Jan Baillevier' in r.get_data(as_text=True))
@@ -65,18 +61,10 @@ class UserModelTestCase(unittest.TestCase):
         url = '/person/bc59fcf2-75e8-41b9-b0bb-cec365348941'
         r = self.client.get(url, follow_redirects=True)
         self.assertEqual(r.status_code, 200)
-        self.assertTrue('Lier, 10 km' in r.get_data(as_text=True))
-        self.assertTrue('Wedstrijden' in r.get_data(as_text=True))
+        self.assertTrue('Lier' in r.get_data(as_text=True))
         # Next get an overview for the participant in this race
-        url = '/participant/3184bb3d-f2fd-4951-aeae-442dc4b566b0/add'
+        url = '/participant/3184bb3d-f2fd-4951-aeae-442dc4b566b0/list'
         r = self.client.get(url, follow_redirects=True)
         # You need to log in first, so check for log in message
         self.assertEqual(r.status_code, 200)
-        self.assertTrue('Please log in to access this page.' in r.get_data(as_text=True))
-        # Login with redirect URL
-        r = self.client.post('/login?next={url}'.format(url=url),
-                             data={'username': 'dirk', 'password': 'olse'},
-                             follow_redirects=True)
-        self.assertEqual(r.status_code, 200)
-        self.assertTrue("Aankomsten" in r.get_data(as_text=True))
-        self.get_logout()
+        self.assertTrue('Aankomsten' in r.get_data(as_text=True))

@@ -43,7 +43,8 @@ def init_loghandler(scriptname, logdir, loglevel):
     logfile = logdir + "/" + modulename + "_" + computername + ".log"
     # Set loglevel for bolt driver to warning
     logging.getLogger("neo4j.bolt").setLevel(logging.WARNING)
-    logging.getLogger("neo4j.http").setLevel(logging.WARNING)
+    # logging.getLogger("neo4j.http").setLevel(logging.WARNING)
+    logging.getLogger("httpstream").setLevel(logging.WARNING)
     # Configure the root logger
     logger = logging.getLogger()
     level = logging.getLevelName(loglevel)

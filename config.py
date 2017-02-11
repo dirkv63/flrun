@@ -10,16 +10,6 @@ class Config:
 
     # Config values from flaskrun.ini
     LOGDIR = "C:\\Temp\\Log"
-    # OrgType
-    WEDSTRIJD = "De organizatie heeft één hoofdwedstrijd en kan één of meer bijwedstrijden hebben."
-    O_DEELNAME = "Dit is een organizatie waar elke deelnemer en elke medewerker punten krijgt."
-    # RaceType
-    HOOFDWEDSTRIJD = "De wedstrijd moet in OLSE shirt gelopen worden. Puntenverdeling: 50, 45, 40. " \
-                     "Vanaf dan per punt 39, 38, 37, ..."
-    BIJWEDSTRIJD = "De wedstrijd moet in OLSE shirt gelopen worden. Iedereen krijgt evenveel punten. " \
-                   "Het aantal punten is als zou de deelnemer de laatste OLSE'er geweest zijn in de hoofdwedstrijd."
-    DEELNAME = "Elke deelnemer krijgt 20 punten. Dit geldt ook voor medewerkers, die niet aan een wedstrijd hebben" \
-               "deelgenomen."
 
     @staticmethod
     def init_app(app):
@@ -28,7 +18,7 @@ class Config:
 
 class DevelopmentConfig(Config):
     DEBUG = True
-    LOGLEVEL = "info"
+    LOGLEVEL = "debug"
     # SERVER_NAME = '0.0.0.0:5012'
     # SERVER_NAME = 'localhost:50120'
 

@@ -45,6 +45,7 @@ def create_app(config_name):
     from .main import main as main_blueprint
     app.register_blueprint(main_blueprint)
     # configure production logging of errors
+    """
     try:
         app.config['PRODUCTION']
     except KeyError:
@@ -55,4 +56,5 @@ def create_app(config_name):
         mail_handler = SMTPHandler('127.0.0.1', 'dirk@vermeylen.net', app.config['ADMINS'], 'Application Error')
         mail_handler.setLevel(logging.ERROR)
         app.logger.addHandler(mail_handler)
+    """
     return app

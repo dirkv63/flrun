@@ -158,7 +158,7 @@ class TestNeoStore(unittest.TestCase):
 
     def test_get_nodes(self):
         # Return list of all nodes
-        self.assertEqual(len(self.ns.get_nodes()), 132)
+        self.assertEqual(len(self.ns.get_nodes()), 133)
         # Return list of all Races
         label = "Race"
         self.assertEqual(len(self.ns.get_nodes(label)), 18)
@@ -262,11 +262,11 @@ class TestNeoStore(unittest.TestCase):
         # Each Entry needs to be a dictionary
         self.assertTrue(isinstance(res[1], dict))
         # The dictionary consists of a valid node, referring to a race.
-        race = res[1]
-        race_id = race["race_id"]
+        result_dict = res[1]
+        race = result_dict["race"]
+        self.assertTrue(isinstance(race, dict))
+        race_id=race["nid"]
         self.assertTrue(isinstance(race_id, str))
-        race_node = self.ns.node(race_id)
-        self.assertTrue(isinstance(race_node, Node))
         # For an invalid Person ID, I need to get a False back.
         person_id = "ccbb1440-382e-43c2-9e5f-6c91c5a5f9da"
         self.assertFalse(self.ns.get_race4person(person_id))

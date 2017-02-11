@@ -11,7 +11,7 @@ from lib import my_env, datastore
 if __name__ == "__main__":
     my_env.init_loghandler(__file__, "c:\\temp\\log", "info")
     ns = neostore.NeoStore()
-    dumpfile = "C:\\Development\\python\\FlaskRun\\neo_dump.sqlite3"
+    dumpfile = "C:\\Development\\python\\FlaskRun\\stratenloop15.sqlite3"
     ds = datastore.DataStore(dumpfile)
     ns.clear_store()
     # First handle all nodes

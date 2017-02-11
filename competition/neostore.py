@@ -24,8 +24,8 @@ class NeoStore:
         Method to instantiate the class in an object for the neostore.
         @return: Object to handle neostore commands.
         """
-        # self.graph = self.connect2db()
-        self.graph = self.connect2graphene()
+        self.graph = self.connect2db()
+        # self.graph = self.connect2graphene()
         self.calendar = GregorianCalendar(self.graph)
         self.selector = NodeSelector(self.graph)
         return
@@ -39,7 +39,7 @@ class NeoStore:
         neo4j_params = {
             'user': "neo4j",
             'password': "_m8z8IpJUPyR",
-            'db': "stratenloop16.db"
+            'db': "stratenloop15.db"
         }
         neo4j_config = {
             'user': neo4j_params['user'],
@@ -188,9 +188,12 @@ class NeoStore:
         specified then any relation type will do.
         The purpose of the function is to find a single end node. If there are multiple end nodes, then a random one
         is returned and an error message will be displayed.
-        @param start_node_id: Node ID of the start node.
-        @param rel_type: Relation type
-        @return: Node ID (integer) of the end Node, or False.
+
+        :param start_node_id: Node ID of the start node.
+
+        :param rel_type: Relation type
+
+        :return: Node ID (integer) of the end Node, or False.
         """
         # First get Node from end node ID
         start_node = self.node(start_node_id)
@@ -199,7 +202,7 @@ class NeoStore:
             try:
                 rel = next(item for item in self.graph.match(start_node=start_node, rel_type=rel_type))
             except StopIteration:
-                logging.warning("No end node found for start node ID {nid} and relation {rel}"
+                logging.warning("No end node found for start node ID: {nid} and relation: {rel}"
                                 .format(nid=start_node_id, rel=rel_type))
                 return False
             else:
@@ -465,10 +468,14 @@ class NeoStore:
         """
         This function will find a race of a specific type in an organization. It will return the race attributes if a
         race has been found, false otherwise.
-        @param org_id: nid of the Organization node.
-        @param racetype_id: nid of the RaceType node.
-        @param name: label (name) of the race (e.g. 10 km).
-        @return: tuple with race nid and organization name, or False if race not found.
+
+        :param org_id: nid of the Organization node.
+
+        :param racetype_id: nid of the RaceType node.
+
+        :param name: label (name) of the race (e.g. 10 km).
+
+        :return: tuple with race nid and organization name, or False if race not found.
         """
         query = """
         MATCH (org:Organization)-->(race:Race)-->(racetype:RaceType)
@@ -526,8 +533,8 @@ class NeoStore:
 
     def get_race4person(self, person_id):
         """
-        This method will get a list of race_ids per person, sorted on date. The information per race will be provided in
-        a list of dictionaries. This includes date, organization, type of race, and race results.
+        This method will get a list of participant information for a  person, sorted on date. The information will be
+        provided in a list of dictionaries. The dictionary values are the corresponding node dictionaries.
 
         :param person_id:
 

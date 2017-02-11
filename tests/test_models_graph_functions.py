@@ -146,10 +146,10 @@ class TestModelGraph(unittest.TestCase):
         self.assertEqual(len(person_list), 6)
         # Check for Person object
         person_object = person_list[3]
-        self.assertTrue(isinstance(person_object, list))
+        self.assertTrue(isinstance(person_object, tuple))
         self.assertEqual(len(person_object), 2)
-        self.assertTrue(isinstance(person_object[0], str))
-        self.assertTrue(isinstance(person_object[1], str))
+        self.assertTrue(isinstance(person_object[0], dict))
+        self.assertTrue(isinstance(person_object[1], dict))
         # Check for race without participants. This should return False.
         race_id = "a0d3ffb2-5fd3-42fb-909d-11f1c635fdc6"
         person_list = mg.participant_seq_list(race_id)
@@ -216,8 +216,8 @@ class TestModelGraph(unittest.TestCase):
         # Dictionary has fields race_id and race_label
         race = races[2]
         self.assertTrue(isinstance(race, dict))
-        self.assertTrue(isinstance(race['race_id'], str))
-        self.assertTrue(isinstance(race['race_label'], str))
+        self.assertTrue(isinstance(race['race'], dict))
+        self.assertTrue(isinstance(race['part'], dict))
 
 if __name__ == "__main__":
     unittest.main()

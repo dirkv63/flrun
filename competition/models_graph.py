@@ -764,11 +764,14 @@ class Race:
 
     def find(self, racetype_id):
         """
-        This method searches for the organization based on organization name, location and datestamp. If found,
-        then organization attributes will be set using method set_organization and True will be returned.
-        If not found, 'False' will be returned.
-        @param racetype_id: Type of the Race
-        @return: True if a race is found for this organization and racetype, False otherwise.
+        This method searches for the race of the specified type and name in the organization. If found, True will be
+        returned, else False.
+        Note that racetype_id is the only parameter required, since race name and org_id are known as part of Race
+        Object.
+
+        :param racetype_id: Type of the Race
+
+        :return: True if a race is found for this organization and racetype, False otherwise.
         """
         try:
             (race_nid, org_name) = ns.get_race_in_org(org_id=self.org_id, racetype_id=racetype_id, name=self.name)
@@ -783,9 +786,12 @@ class Race:
         """
         This method will check if the race is registered for this organization. If not, the race graph object
         (exists of race name with link to race type and the organization) will be created.
-        @param name: Name of the race
-        @param racetype: 1 then Hoofdwedstrijd. If False: then calculate (bijwedstrijd or Deelname).
-        @return: True if the race has been registered, False if it existed already.
+
+        :param name: Name of the race
+
+        :param racetype: 1 then Hoofdwedstrijd. If False: then calculate (bijwedstrijd or Deelname).
+
+        :return: True if the race has been registered, False if it existed already.
         """
         # Todo - add tests on race type: deelname must be for each race of organization, hoofdwedstrijd only one.
         self.name = name
@@ -1464,9 +1470,12 @@ def set_race_type(race_id=None, race_type_node=None):
     """
     Check if old node type is defined. If so, remove the link.
     Then add new link.
-    @param race_id: Node ID for the race
-    @param race_type_node:
-    @return:
+
+    :param race_id: Node ID for the race
+
+    :param race_type_node:
+
+    :return:
     """
     race_node = ns.node(race_id)
     # Check if there is a link now.
