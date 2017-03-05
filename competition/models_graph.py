@@ -1048,7 +1048,7 @@ def races4person(pers_id):
     This method will get a list of race_ids per person, sorted on date. The information per race will be provided in
     a list of dictionaries. This includes date, organization, type of race, and race results.
 
-    :param person_id:
+    :param pers_id:
 
     :return: list of Participant (part),race, date, organization (org) and racetype Node dictionaries in date
     sequence.
@@ -1063,7 +1063,7 @@ def races4person_org(pers_id):
     This method gets the result of races4person method, then converts the result in a dictionary with key org_nid and
     value race dictionary.
 
-    :param person_id:
+    :param pers_id:
 
     :return: Dictionary with key org_nid and value dictionary of node race attributes for the person. This can be used
     for the Results Overview page.
@@ -1169,10 +1169,12 @@ def points_position(pos):
         points = 50
     elif pos == 2:
         points = 45
+    elif pos == 3:
+        points = 40
     else:
-        points = 43-pos
-    if points < 1:
-        points = 1
+        points = 39-pos
+    if points < 15:
+        points = 15
     return points
 
 
@@ -1324,14 +1326,11 @@ def results_for_category(cat):
     return result_sorted
 
 
-def participant_seq_list(race_id, add_points=None):
+def participant_seq_list(race_id):
     """
     This method will collect the people in a race in sequence of arrival.
 
     :param race_id: nid of the race for which the participants are returned in sequence of arrival.
-
-    :param add_points: If set to True, then participant points will be added to the participant item. Otherwise no
-     participant points will be set and the list can be used as a selection list (e.g. in participant_after_list).
 
     :return: List of participants items in the race. Each item is a tuple of the person dictionary (from the person
      object) and the participant dictionary (the properties of the participant node). False if no participants in the
