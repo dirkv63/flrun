@@ -730,13 +730,47 @@ class NeoStore:
             logging.error("Could not bind ID {node_id} to a node.".format(node_id=nid))
             return False
 
+    def node_set_attribs(self, **properties):
+        """
+        This method will set the node's properties with the properties specified. Modified properties will be
+        updated, new properties will be added and properties not in the dictionary will be left unchanged.
+        Compare with method node_update, where node property set matches the **properties dictionary.
+        nid needs to be part of the properties dictionary.
+
+        :param properties: Dictionary of the property set for the node. 'nid' property is mandatory.
+
+        :return: True if successful update, False otherwise.
+        """
+        #ToDo: merge this procedure with node_update, by adding remove_flag.
+        #ToDo: compare with method Participant.set_props. There seems to be a duplicate.
+        try:
+            my_node = self.node(properties["nid"])
+        except KeyError:
+            logging.error("Attribute 'nid' missing, required in dictionary.")
+            return False
+        if my_node:
+            curr_props = self.node_props(properties["nid"])
+            # Modify properties and add new properties
+            # So I'm sure that nid is still in the property dictionary
+            for prop in properties:
+                my_node[prop] = properties[prop]
+            # Now push the changes to Neo4J database.
+            self.graph.push(my_node)
+            return True
+        else:
+            logging.error("No node found for NID {nid}".format(nid=properties["nid"]))
+            return False
+
     def node_update(self, **properties):
         """
         This method will update the node's properties with the properties specified. Modified properties will be
         updated, new properties will be added and removed properties will be deleted.
+        Compare with method node_set_attribs, where node properties are never removed..
         nid needs to be part of the properties dictionary.
-        @param properties: Dictionary of the property set for the node. 'nid' property is mandatory.
-        @return: True if successful update, False otherwise.
+
+        :param properties: Dictionary of the property set for the node. 'nid' property is mandatory.
+
+        :return: True if successful update, False otherwise.
         """
         try:
             my_node = self.node(properties["nid"])

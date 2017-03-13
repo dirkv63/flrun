@@ -337,7 +337,7 @@ def participant_list(race_id):
     """
     race_label = mg.race_label(race_id)
     org_id = mg.get_org_id(race_id=race_id)
-    finishers = mg.participant_seq_list(race_id, add_points=True)
+    finishers = mg.participant_seq_list(race_id)
     return render_template('participant_list.html', finishers=finishers, race_label=race_label, race_id=race_id,
                            org_id=org_id)
 
@@ -383,7 +383,7 @@ def participant_add(race_id):
             race_label=race_label,
             org_id=org_id
         )
-        finishers = mg.participant_seq_list(race_id, add_points=True)
+        finishers = mg.participant_seq_list(race_id)
         if finishers:
             param_dict['finishers'] = finishers
         return render_template('participant_add.html', **param_dict)
@@ -423,7 +423,7 @@ def participant_edit(part_id):
         # (http://wtforms.readthedocs.io/en/latest/crash_course.html#how-forms-get-data)
         part_props = part.get_props()
         form = ParticipantEdit(**part_props)
-        finishers = mg.participant_seq_list(race_id, add_points=True)
+        finishers = mg.participant_seq_list(race_id)
         # There must be finishers, since I can update one of them
         return render_template('participant_edit.html', form=form, race_id=race_id, finishers=finishers,
                                race_label=race_label, org_id=org_id, person=person_dict)

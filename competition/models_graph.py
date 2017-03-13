@@ -187,6 +187,7 @@ class Participant:
         :param props: list of user properties for the participant node.
         :return:
         """
+        #ToDo: It may be better to use ns.node_set_attribs.
         # Get participant node to ensure latest values for all calculated properties.
         # Ignore the user configurable properties, since these are managed in the **props dictionary.
         self.part_node = ns.node(self.part_id)
@@ -1237,7 +1238,7 @@ def points_bijwedstrijd(race_id):
                 points = d_points
                 rel_pos = d_rel_pos
             props = dict(nid=part["nid"], points=points, rel_pos=rel_pos)
-            ns.node_update(**props)
+            ns.node_set_attribs(**props)
     return
 
 
@@ -1259,7 +1260,7 @@ def points_hoofdwedstrijd(race_id):
             rel_pos = cnt[mf]
             # Set points for participant
             props = dict(nid=part["nid"], points=points, rel_pos=rel_pos)
-            ns.node_update(**props)
+            ns.node_set_attribs(**props)
     return
 
 
@@ -1276,7 +1277,7 @@ def points_deelname(race_id):
     if node_list:
         for part in node_list:
             props = dict(nid=part["nid"], points=points)
-            ns.node_update(**props)
+            ns.node_set_attribs(**props)
     return
 
 
