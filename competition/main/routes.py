@@ -3,7 +3,7 @@ import competition.models_graph as mg
 # import datetime
 from lib import my_env
 # from lib import neostore
-from flask import render_template, flash, current_app, redirect, url_for, request
+from flask import render_template, flash, current_app, redirect, url_for, request, make_response
 from flask_login import login_required, login_user, logout_user
 from .forms import *
 from . import main

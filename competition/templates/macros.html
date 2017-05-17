@@ -36,6 +36,7 @@
                 <th></th>
                 <th>Naam</th>
                 <th style="text-align:right">Punten</th>
+                <th style="text-align:right">Tijd</th>
                 {% if current_user.is_authenticated %}
                     <th></th>
                 {% endif %}
@@ -63,6 +64,9 @@
                 </td>
                 <td style="text-align:right">
                     {{ part['points'] }}
+                </td>
+                <td style="text-align:right">
+                    {{ part['remark'] }}
                 </td>
                 {% if current_user.is_authenticated %}
                     <td>
