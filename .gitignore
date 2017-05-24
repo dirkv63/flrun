@@ -2,8 +2,8 @@
 # Git Ignore
 ############
 *.swp
-*.zip
 *.dot
+*.zip
 *.dot-input
 *.gif
 *.mwb.bak
