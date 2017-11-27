@@ -1285,7 +1285,9 @@ def points_sum(point_list):
     """
     This function will calculate the total of the points for this participant. For now, the sum of all points is
     calculated.
+    To do: points for 'deelname' should be calculated separately and in full
     :param point_list: list of the points for the participant.
+
     :return: sum of the points
     """
     nr_races = 7
@@ -1301,7 +1303,8 @@ def points_sum(point_list):
 
 def results_for_category(cat):
     """
-    This method will calculate the points for all participants in a category.
+    This method will calculate the points for all participants in a category. Split up in points for wedstrijd and
+    points for deelname at this point.
 
     :param cat: Category to calculate the points
 

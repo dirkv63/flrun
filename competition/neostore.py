@@ -38,8 +38,8 @@ class NeoStore:
         """
         neo4j_params = {
             'user': "neo4j",
-            'password': "_m8z8IpJUPyR",
-            'db': "stratenloop17.db"
+            'password': "6H0sehEpbOkI",
+            'db': "strat17.db"
         }
         neo4j_config = {
             'user': neo4j_params['user'],
