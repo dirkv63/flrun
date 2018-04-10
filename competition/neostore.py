@@ -46,9 +46,9 @@ class NeoStore:
         }
         try:
             host = neo4j_params["host"]
+            neo4j_config['host'] = host
         except KeyError:
             host = "localhost"
-        neo4j_config['host'] = host
         # Connect to Graph
         graph = Graph(**neo4j_config)
         # Check that we are connected to the expected Neo4J Store - to avoid accidents...
