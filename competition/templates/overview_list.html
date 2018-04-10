@@ -29,10 +29,9 @@
             {% endfor %}
         </tr>
 
-        {% set cnt = 1 %}
         {% for row in result_set %}
         <tr>
-            <td>{{ cnt }}</td>
+            <td>{{ loop.index }}</td>
             <td>{% if row[2] > 6 %}<b>{% endif %}
                 <a href="{{ url_for('main.results', cat=cat, person_id=row[3]) }}">
                     {{ row[0] }}
@@ -61,7 +60,6 @@
                 {% endif %}
             {% endfor %}
         </tr>
-        {% set cnt = cnt + 1 %}
         {% endfor %}
     </table>
 </div>
