@@ -1,12 +1,20 @@
 import logging
+import os
 from . import lm
 from competition import neostore
 from flask_login import UserMixin
 # from lib import my_env
 from werkzeug.security import generate_password_hash, check_password_hash
 
-# Todo: Get Username / Password from environment settings
-ns = neostore.NeoStore()
+neo4j_params = dict(
+    user=os.environ.get('Neo4J_User'),
+    password=os.environ.get('Neo4J_Pwd'),
+    db=os.environ.get('Neo4J_Db')
+)
+host = os.environ.get("Neo4J_Host")
+if isinstance(host, str):
+    neo4j_params['host'] = host
+ns = neostore.NeoStore(**neo4j_params)
 
 
 class User(UserMixin):
@@ -186,8 +194,8 @@ class Participant:
         collected from the participant node and added to the list of properties that are set by the user.
         :param props: list of user properties for the participant node.
         :return:
-        """
-        #ToDo: It may be better to use ns.node_set_attribs.
+         """
+        # ToDo: It may be better to use ns.node_set_attribs.
         # Get participant node to ensure latest values for all calculated properties.
         # Ignore the user configurable properties, since these are managed in the **props dictionary.
         self.part_node = ns.node(self.part_id)

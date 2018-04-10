@@ -1,5 +1,5 @@
-import logging
-# import os
+# import logging
+import os
 from config import config
 from flask import Flask
 from flask_bootstrap import Bootstrap
@@ -30,16 +30,14 @@ def create_app(config_name):
     # initialize extensions
     bootstrap.init_app(app)
     lm.init_app(app)
-    """
-    node_params = {
-        'wedstrijd': app.config.get('WEDSTRIJD'),
-        'o_deelname': app.config.get('O_DEELNAME'),
-        'hoofdwedstrijd': app.config.get('HOOFDWEDSTRIJD'),
-        'bijwedstrijd': app.config.get('BIJWEDSTRIJD'),
-        'deelname': app.config.get('DEELNAME')
-    }
-    ns.init_graph(**node_params)
-    """
+
+    os.environ['Neo4J_User'] = app.config.get('NEO4J_USER')
+    os.environ['Neo4J_Pwd'] = app.config.get('NEO4J_PWD')
+    os.environ['Neo4J_Db'] = app.config.get('NEO4J_DB')
+    try:
+        os.environ['Neo4J_Host'] = app.config.get('NEO4J_HOST')
+    except TypeError:
+        pass
 
     # import blueprints
     from .main import main as main_blueprint
